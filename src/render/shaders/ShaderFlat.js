@@ -1,8 +1,8 @@
-define([
-  'render/shaders/ShaderBase'
-], function (ShaderBase) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var ShaderBase = require('render/shaders/ShaderBase');
 
   var ShaderFlat = ShaderBase.getCopy();
   ShaderFlat.vertexName = ShaderFlat.fragmentName = 'FlatColor';
@@ -23,11 +23,9 @@ define([
     'attribute vec3 aMaterial;',
     ShaderBase.strings.vertUniforms,
     'varying vec3 vVertex;',
-    'varying float vMasking;',
     'void main() {',
-    '  vMasking = aMaterial.z;',
     '  vec4 vertex4 = vec4(aVertex, 1.0);',
-    '  gl_Position = uMVP * mix(vertex4, uEM * vertex4, vMasking);',
+    '  gl_Position = uMVP * mix(vertex4, uEM * vertex4, aMaterial.z);',
     '}'
   ].join('\n');
 
@@ -44,5 +42,5 @@ define([
     ShaderBase.updateUniforms.call(this, render, main);
   };
 
-  return ShaderFlat;
+  module.exports = ShaderFlat;
 });

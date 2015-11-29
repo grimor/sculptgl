@@ -1,21 +1,22 @@
-define([
-  'lib/yagui',
-  'gui/GuiTR',
-  'gui/GuiBackground',
-  'gui/GuiCamera',
-  'gui/GuiConfig',
-  'gui/GuiFiles',
-  'gui/GuiMesh',
-  'gui/GuiTopology',
-  'gui/GuiRendering',
-  'gui/GuiScene',
-  'gui/GuiSculpting',
-  'gui/GuiStates',
-  'gui/GuiTablet',
-  'render/shaders/ShaderContour'
-], function (yagui, TR, GuiBackground, GuiCamera, GuiConfig, GuiFiles, GuiMesh, GuiTopology, GuiRendering, GuiScene, GuiSculpting, GuiStates, GuiTablet, ShaderContour) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var yagui = require('lib/yagui');
+  var TR = require('gui/GuiTR');
+  var GuiBackground = require('gui/GuiBackground');
+  var GuiCamera = require('gui/GuiCamera');
+  var GuiConfig = require('gui/GuiConfig');
+  var GuiFiles = require('gui/GuiFiles');
+  var GuiMesh = require('gui/GuiMesh');
+  var GuiTopology = require('gui/GuiTopology');
+  var GuiRendering = require('gui/GuiRendering');
+  var GuiScene = require('gui/GuiScene');
+  var GuiSculpting = require('gui/GuiSculpting');
+  var GuiStates = require('gui/GuiStates');
+  var GuiTablet = require('gui/GuiTablet');
+  var ShaderContour = require('render/shaders/ShaderContour');
+  var getOptionsURL = require('misc/getOptionsURL');
 
   var Gui = function (main) {
     this._main = main;
@@ -41,11 +42,10 @@ define([
   };
 
   Gui.prototype = {
-    /** Initialize dat-gui stuffs */
     initGui: function () {
       this.deleteGui();
 
-      this._guiMain = new yagui.GuiMain(this._main.getCanvas(), this._main.onCanvasResize.bind(this._main));
+      this._guiMain = new yagui.GuiMain(this._main.getViewport(), this._main.onCanvasResize.bind(this._main));
 
       var ctrls = this._ctrls;
       ctrls.length = 0;
@@ -59,7 +59,7 @@ define([
       ctrls[idc++] = this._ctrlBackground = new GuiBackground(this._topbar, this);
       ctrls[idc++] = this._ctrlCamera = new GuiCamera(this._topbar, this);
       // TODO find a way to get pressure event
-      // ctrls[idc++] = this._ctrlTablet = new GuiTablet(this._topbar, this);
+      if (getOptionsURL().wacom) ctrls[idc++] = this._ctrlTablet = new GuiTablet(this._topbar, this);
       ctrls[idc++] = this._ctrlConfig = new GuiConfig(this._topbar, this);
       ctrls[idc++] = this._ctrlMesh = new GuiMesh(this._topbar, this);
 
@@ -75,10 +75,17 @@ define([
       extra.addTitle(TR('contour'));
       extra.addColor(TR('contourColor'), ShaderContour.color, this.onContourColor.bind(this));
 
+      extra.addTitle(TR('resolution'));
+      extra.addSlider('', this._main._pixelRatio, this.onPixelRatio.bind(this), 0.5, 2.0, 0.02);
+
       this.addDonateButton();
 
       this.updateMesh();
       this.setVisibility(true);
+    },
+    onPixelRatio: function (val) {
+      this._main._pixelRatio = val;
+      this._main.onCanvasResize();
     },
     onContourColor: function (col) {
       ShaderContour.color[0] = col[0];
@@ -94,7 +101,6 @@ define([
         document.getElementById('donate').submit();
       });
     },
-    /** Return simple widget */
     getWidgetNotification: function () {
       if (!this._ctrlNotification) {
         this._ctrlNotification = this._topbar.addMenu();
@@ -102,7 +108,6 @@ define([
       }
       return this._ctrlNotification;
     },
-    /** Update information on mesh */
     updateMesh: function () {
       this._ctrlRendering.updateMesh();
       this._ctrlTopology.updateMesh();
@@ -110,51 +115,39 @@ define([
       this._ctrlScene.updateMesh();
       this.updateMeshInfo();
     },
-    /** Update number of vertices and triangles */
     updateMeshInfo: function () {
       this._ctrlMesh.updateMeshInfo();
     },
-    /** Return true if flat shading is enabled */
     getFlatShading: function () {
       return this._ctrlRendering.getFlatShading();
     },
-    /** Return true if wireframe is displayed */
     getWireframe: function () {
       return this._ctrlRendering.getWireframe();
     },
-    /** Return the value of the shader */
-    getShader: function () {
-      return this._ctrlRendering.getShader();
-    },
-    addEvents: function () {
-      for (var i = 0, ctrls = this._ctrls, nb = ctrls.length; i < nb; ++i) {
-        var ct = ctrls[i];
-        if (ct && ct.addEvents)
-          ct.addEvents();
-      }
-    },
-    removeEvents: function () {
-      for (var i = 0, ctrls = this._ctrls, nb = ctrls.length; i < nb; ++i) {
-        var ct = ctrls[i];
-        if (ct && ct.removeEvents)
-          ct.removeEvents();
-      }
+    getShaderName: function () {
+      return this._ctrlRendering.getShaderName();
     },
     addAlphaOptions: function (opts) {
       this._ctrlSculpting.addAlphaOptions(opts);
     },
-    /** Delete the old gui */
     deleteGui: function () {
       if (!this._guiMain || !this._guiMain.domMain.parentNode)
         return;
-      this.removeEvents();
+      this.callFunc('removeEvents');
       this.setVisibility(false);
       this._guiMain.domMain.parentNode.removeChild(this._guiMain.domMain);
     },
     setVisibility: function (bool) {
       this._guiMain.setVisibility(bool);
+    },
+    callFunc: function (func, event) {
+      for (var i = 0, ctrls = this._ctrls, nb = ctrls.length; i < nb; ++i) {
+        var ct = ctrls[i];
+        if (ct && ct[func])
+          ct[func](event);
+      }
     }
   };
 
-  return Gui;
+  module.exports = Gui;
 });

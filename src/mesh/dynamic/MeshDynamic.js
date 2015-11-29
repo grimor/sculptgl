@@ -1,14 +1,16 @@
-define([
-  'misc/Utils',
-  'mesh/dynamic/Topology',
-  'mesh/Mesh'
-], function (Utils, Topology, Mesh) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var Utils = require('misc/Utils');
+  var Topology = require('mesh/dynamic/Topology');
+  var Mesh = require('mesh/Mesh');
 
   // Dynamic topology mesh (triangles only)
   // Obviously less performant than the static topology mesh
   // It "inherits" Mesh but in practice it almost overrides everything related to topology
+  //
+  // The edges are not computed though (kind of bothersome to update...)
   //
   // The wireframe is directly computed from the triangles (it's as stupid as 1 tri => 3 lines)
   // Basically... "quick and dirty" (the edges will be drawn twice)
@@ -31,7 +33,7 @@ define([
     this.init(mesh);
     this.setRender(mesh.getRender());
     if (mesh.isUsingTexCoords())
-      this.setShader('PBR');
+      this.setShaderName('MATCAP');
     mesh.getRender()._mesh = this;
     this.initRender();
   };
@@ -90,9 +92,9 @@ define([
       return this.getTriangles().subarray(0, this.getNbTriangles() * 3);
     },
     init: function (mesh) {
-      this.setVertices(new Float32Array(mesh.getVertices()));
-      this.setColors(new Float32Array(mesh.getColors()));
-      this.setMaterials(new Float32Array(mesh.getMaterials()));
+      this.setVertices(mesh.getVertices().slice());
+      this.setColors(mesh.getColors().slice());
+      this.setMaterials(mesh.getMaterials().slice());
       this.setFaces(new Int32Array(mesh.getNbTriangles() * 4));
       this.setNbFaces(mesh.getNbTriangles());
       this.setNbVertices(mesh.getNbVertices());
@@ -101,12 +103,7 @@ define([
 
       this.initTriangles(mesh);
       this.initRenderTriangles();
-      this.initVertices();
-
-      var i = 0;
-      var nbVertices = this.getNbVertices();
-      for (i = 0; i < nbVertices; ++i)
-        this.computeRingVertices(i);
+      this.initVerticesTopology();
 
       this.updateFacesAabbAndNormal();
       this.updateVerticesNormal();
@@ -117,7 +114,7 @@ define([
       if (this.getShowWireframe())
         this.updateWireframe(iFaces);
       if (this.isUsingDrawArrays())
-        this.updateDrawArrays(true, iFaces);
+        this.updateDrawArrays(iFaces);
     },
     getWireframe: function () {
       if (!this._wireframe) {
@@ -129,11 +126,6 @@ define([
     setShowWireframe: function (showWireframe) {
       this._wireframe = null;
       this.getRender().setShowWireframe(showWireframe);
-    },
-    setFlatShading: function (flatShading) {
-      this.getRender().setFlatShading(flatShading);
-      // recompute wireframe if enabled
-      this.setShowWireframe(this.getShowWireframe());
     },
     updateWireframe: function (iFaces) {
       var wire = this._wireframe;
@@ -183,7 +175,7 @@ define([
       this.reAllocate(nbAddElements);
       if (this.isUsingDrawArrays())
         this.getDrawArraysData().reAllocateArrays(nbAddElements);
-      this.getIndexData().reAllocateArrays(nbAddElements);
+      this.getFaceData().reAllocateArrays(nbAddElements);
       this.getVertexData().reAllocateArrays(nbAddElements);
       this.getOctree().reAllocateArrays(nbAddElements);
     },
@@ -211,7 +203,7 @@ define([
         fAr[id4 + 3] = -1;
       }
     },
-    initVertices: function () {
+    initVerticesTopology: function () {
       var vrings = this._vrings;
       var frings = this._frings;
       var i = 0;
@@ -230,6 +222,9 @@ define([
         frings[iAr[j + 1]].push(i);
         frings[iAr[j + 2]].push(i);
       }
+
+      for (i = 0; i < nbVertices; ++i)
+        this.computeRingVertices(i);
     },
     /** Compute the vertices around a vertex */
     computeRingVertices: function (iVert) {
@@ -265,5 +260,5 @@ define([
 
   Utils.makeProxy(Mesh, MeshDynamic);
 
-  return MeshDynamic;
+  module.exports = MeshDynamic;
 });

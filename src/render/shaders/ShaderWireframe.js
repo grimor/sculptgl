@@ -1,8 +1,8 @@
-define([
-  'render/shaders/ShaderBase'
-], function (ShaderBase) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var ShaderBase = require('render/shaders/ShaderBase');
 
   var ShaderWireframe = ShaderBase.getCopy();
   ShaderWireframe.vertexName = ShaderWireframe.fragmentName = 'Wireframe';
@@ -43,14 +43,13 @@ define([
     this.bindAttributes(render);
     this.updateUniforms(render);
     render.getWireframeBuffer().bind();
-    gl.enable(gl.BLEND);
+
     gl.drawElements(gl.LINES, render.getMesh().getRenderNbEdges() * 2, gl.UNSIGNED_INT, 0);
-    gl.disable(gl.BLEND);
   };
   ShaderWireframe.updateUniforms = function (render) {
     render.getGL().uniformMatrix4fv(this.uniforms.uMVP, false, render.getMesh().getMVP());
     render.getGL().uniformMatrix4fv(this.uniforms.uEM, false, render.getMesh().getEditMatrix());
   };
 
-  return ShaderWireframe;
+  module.exports = ShaderWireframe;
 });

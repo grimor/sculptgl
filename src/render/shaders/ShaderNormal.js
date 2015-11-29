@@ -1,8 +1,8 @@
-define([
-  'render/shaders/ShaderBase'
-], function (ShaderBase) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var ShaderBase = require('render/shaders/ShaderBase');
 
   var ShaderNormal = ShaderBase.getCopy();
   ShaderNormal.vertexName = ShaderNormal.fragmentName = 'ShowNormal';
@@ -45,11 +45,10 @@ define([
     'uniform float uAlpha;',
     ShaderBase.strings.fragColorUniforms,
     ShaderBase.strings.fragColorFunction,
-    ShaderBase.strings.colorSpaceGLSL,
     'void main() {',
-    '  gl_FragColor = vec4(applyMaskAndSym(sRGBToLinear(vNormal * 0.5 + 0.5)), uAlpha);',
+    '  gl_FragColor = encodeFragColor(sRGBToLinear(getNormal() * 0.5 + 0.5), uAlpha);',
     '}'
   ].join('\n');
 
-  return ShaderNormal;
+  module.exports = ShaderNormal;
 });

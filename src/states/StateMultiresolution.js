@@ -1,4 +1,4 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
 
@@ -9,7 +9,7 @@ define([], function () {
     this._type = type; // the type of action
     this._sel = multimesh._sel; // the selected mesh
 
-    switch (this._type) {
+    switch (type) {
     case StateMultiresolution.DELETE_LOWER:
       this._deletedMeshes = multimesh._meshes.slice(0, multimesh._sel); // deleted meshes
       break;
@@ -21,9 +21,9 @@ define([], function () {
     case StateMultiresolution.SUBDIVISION:
     case StateMultiresolution.REVERSION:
       if (!isRedo) {
-        this._vArState = new Float32Array(this._mesh.getVertices()); // copies of vertices coordinates
-        this._cArState = new Float32Array(this._mesh.getColors()); // copies of colors
-        this._mArState = new Float32Array(this._mesh.getMaterials()); // copies of materials
+        this._vArState = this._mesh.getVertices().slice(); // copies of vertices coordinates
+        this._cArState = this._mesh.getColors().slice(); // copies of colors
+        this._mArState = this._mesh.getMaterials().slice(); // copies of materials
       }
       break;
     }
@@ -36,7 +36,9 @@ define([], function () {
   StateMultiresolution.DELETE_HIGHER = 4; // deletes higher resolution
 
   StateMultiresolution.prototype = {
-    /** On undo */
+    isNoop: function () {
+      return false;
+    },
     undo: function () {
       var mul = this._multimesh;
       switch (this._type) {
@@ -52,21 +54,20 @@ define([], function () {
         this._mesh.setVerticesMapping(this._vMappingState);
         break;
       case StateMultiresolution.SUBDIVISION:
-        this._mesh.setVertices(new Float32Array(this._vArState));
-        this._mesh.setColors(new Float32Array(this._cArState));
-        this._mesh.setMaterials(new Float32Array(this._mArState));
+        this._mesh.setVertices(this._vArState.slice());
+        this._mesh.setColors(this._cArState.slice());
+        this._mesh.setMaterials(this._mArState.slice());
         mul.popMesh();
         break;
       case StateMultiresolution.REVERSION:
-        this._mesh.setVertices(new Float32Array(this._vArState));
-        this._mesh.setColors(new Float32Array(this._cArState));
-        this._mesh.setMaterials(new Float32Array(this._mArState));
+        this._mesh.setVertices(this._vArState.slice());
+        this._mesh.setColors(this._cArState.slice());
+        this._mesh.setMaterials(this._mArState.slice());
         mul.shiftMesh();
         break;
       }
       this._main.setMesh(mul);
     },
-    /** On redo */
     redo: function () {
       var mul = this._multimesh;
       switch (this._type) {
@@ -88,11 +89,10 @@ define([], function () {
       }
       this._main.setMesh(mul);
     },
-    /** Push the redo state */
     createRedo: function () {
       return new StateMultiresolution(this._main, this._multimesh, this._type, true);
     }
   };
 
-  return StateMultiresolution;
+  module.exports = StateMultiresolution;
 });

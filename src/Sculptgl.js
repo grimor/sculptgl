@@ -1,18 +1,21 @@
-define([
-  'lib/glMatrix',
-  'lib/Hammer',
-  'misc/Utils',
-  'Scene',
-  'mesh/multiresolution/Multimesh'
-], function (glm, Hammer, Utils, Scene, Multimesh) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  require('misc/Polyfill');
+  var glm = require('lib/glMatrix');
+  var Hammer = require('lib/Hammer');
+  var Utils = require('misc/Utils');
+  var Scene = require('Scene');
+  var Multimesh = require('mesh/multiresolution/Multimesh');
 
   var vec3 = glm.vec3;
 
   // Manage events
   var SculptGL = function () {
     Scene.call(this);
+
+    // all x and y position are canvas based
 
     // controllers stuffs
     this._mouseX = 0;
@@ -41,20 +44,60 @@ define([
   var MOUSE_RIGHT = 3;
 
   SculptGL.prototype = {
-    initHammer: function () {
-      this.initHammerRecognizers();
-      this.initHammerEvents();
+    addEvents: function () {
+      var canvas = this._canvas;
+
+      var cbMouseWheel = this.onMouseWheel.bind(this);
+      // mouse
+      canvas.addEventListener('mousedown', this.onMouseDown.bind(this), false);
+      canvas.addEventListener('mouseup', this.onMouseUp.bind(this), false);
+      canvas.addEventListener('mouseout', this.onMouseOut.bind(this), false);
+      canvas.addEventListener('mouseover', this.onMouseOver.bind(this), false);
+      canvas.addEventListener('mousemove', Utils.throttle(this.onMouseMove.bind(this), 16.66), false);
+      canvas.addEventListener('mousewheel', cbMouseWheel, false);
+      canvas.addEventListener('DOMMouseScroll', cbMouseWheel, false);
+
+      //key
+      window.addEventListener('keydown', this.onKeyDown.bind(this), false);
+      window.addEventListener('keyup', this.onKeyUp.bind(this), false);
+
+      var cbLoadFiles = this.loadFiles.bind(this);
+      var cbStopAndPrevent = this.stopAndPrevent.bind(this);
+      // misc
+      canvas.addEventListener('webglcontextlost', this.onContextLost.bind(this), false);
+      canvas.addEventListener('webglcontextrestored', this.onContextRestored.bind(this), false);
+      window.addEventListener('dragenter', cbStopAndPrevent, false);
+      window.addEventListener('dragover', cbStopAndPrevent, false);
+      window.addEventListener('drop', cbLoadFiles, false);
+      document.getElementById('fileopen').addEventListener('change', cbLoadFiles, false);
     },
-    initHammerRecognizers: function () {
+    initHammer: function () {
+      this._hammer.options.enable = true;
+      this._initHammerRecognizers();
+      this._initHammerEvents();
+    },
+    _initHammerRecognizers: function () {
       var hm = this._hammer;
       // double tap
       hm.add(new Hammer.Tap({
         event: 'doubletap',
+        pointers: 1,
         taps: 2,
         time: 250, // def : 250.  Maximum press time in ms.
         interval: 450, // def : 300. Maximum time in ms between multiple taps.
         threshold: 5, // def : 2. While doing a tap some small movement is allowed.
         posThreshold: 50 // def : 30. The maximum position difference between multiple taps.
+      }));
+
+      // double tap 2 fingers
+      hm.add(new Hammer.Tap({
+        event: 'doubletap2fingers',
+        pointers: 2,
+        taps: 2,
+        time: 250,
+        interval: 450,
+        threshold: 5,
+        posThreshold: 50
       }));
 
       // pan
@@ -72,16 +115,39 @@ define([
       }));
       hm.get('pinch').recognizeWith(hm.get('pan'));
     },
-    initHammerEvents: function () {
+    _initHammerEvents: function () {
       var hm = this._hammer;
       hm.on('panstart', this.onPanStart.bind(this));
       hm.on('panmove', this.onPanMove.bind(this));
       hm.on('panend pancancel', this.onPanEnd.bind(this));
 
       hm.on('doubletap', this.onDoubleTap.bind(this));
+      hm.on('doubletap2fingers', this.onDoubleTap2Fingers.bind(this));
       hm.on('pinchstart', this.onPinchStart.bind(this));
       hm.on('pinchin pinchout', this.onPinchInOut.bind(this));
     },
+    stopAndPrevent: function (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    },
+    onContextLost: function () {
+      window.alert('Oops... WebGL context lost.');
+    },
+    onContextRestored: function () {
+      window.alert('Wow... Context is restored.');
+    },
+    ////////////////
+    // KEY EVENTS
+    ////////////////
+    onKeyDown: function (e) {
+      this._gui.callFunc('onKeyDown', e);
+    },
+    onKeyUp: function (e) {
+      this._gui.callFunc('onKeyUp', e);
+    },
+    ////////////////
+    // MOBILE EVENTS
+    ////////////////
     onPanStart: function (e) {
       if (e.pointerType === 'mouse')
         return;
@@ -121,23 +187,24 @@ define([
       this.setMousePosition(evProxy);
 
       var picking = this._picking;
-      var res = picking.intersectionMouseMeshes(this._meshes, this._mouseX, this._mouseY);
+      var res = picking.intersectionMouseMeshes();
       var cam = this._camera;
       var pivot = [0.0, 0.0, 0.0];
-      var zoom = 0;
-      if (!res) {
-        zoom = 70.0;
-        if (this._meshes.length > 0) {
-          var box = this.computeBoundingBoxMeshes(this._meshes);
-          zoom = 0.8 * vec3.dist([box[0], box[1], box[2]], [box[3], box[4], box[5]]);
-          vec3.set(pivot, (box[0] + box[3]) * 0.5, (box[1] + box[4]) * 0.5, (box[2] + box[5]) * 0.5);
-        }
-      } else {
-        vec3.transformMat4(pivot, picking.getIntersectionPoint(), picking.getMesh().getMatrix());
-        zoom = Math.min(cam.getTransZ(), vec3.dist(pivot, cam.computePosition()));
-      }
+      if (!res)
+        return this.resetCameraScene();
+
+      vec3.transformMat4(pivot, picking.getIntersectionPoint(), picking.getMesh().getMatrix());
+      var zoom = cam._trans[2];
+      if (!cam.isOrthographic())
+        zoom = Math.min(zoom, vec3.dist(pivot, cam.computePosition()));
+
       cam.setAndFocusOnPivot(pivot, zoom);
       this.render();
+    },
+    onDoubleTap2Fingers: function () {
+      if (this._focusGui)
+        return;
+      this.resetCameraScene();
     },
     onPinchStart: function (e) {
       this._focusGui = false;
@@ -148,68 +215,21 @@ define([
       this._lastScale = e.scale;
       this.onDeviceWheel(dir);
     },
-    addEvents: function () {
-      this._hammer.options.enable = true;
-      var canvas = this._canvas;
-
-      var cbMouseMove = Utils.throttle(this.onMouseMove.bind(this), 16.66);
-      var cbMouseDown = this.onMouseDown.bind(this);
-      var cbMouseUp = this.onMouseUp.bind(this);
-      var cbMouseOut = this.onMouseOut.bind(this);
-      var cbMouseOver = this.onMouseOver.bind(this);
-      var cbMouseWheel = this.onMouseWheel.bind(this);
-
-      // mouse
-      canvas.addEventListener('mousedown', cbMouseDown, false);
-      canvas.addEventListener('mouseup', cbMouseUp, false);
-      canvas.addEventListener('mouseout', cbMouseOut, false);
-      canvas.addEventListener('mouseover', cbMouseOver, false);
-      canvas.addEventListener('mousemove', cbMouseMove, false);
-      canvas.addEventListener('mousewheel', cbMouseWheel, false);
-      canvas.addEventListener('DOMMouseScroll', cbMouseWheel, false);
-
-      var cbContextLost = this.onContextLost.bind(this);
-      var cbContextRestored = this.onContextRestored.bind(this);
-      var cbLoadFiles = this.loadFiles.bind(this);
-      var cbStopAndPrevent = this.stopAndPrevent.bind(this);
-
-      // misc
-      canvas.addEventListener('webglcontextlost', cbContextLost, false);
-      canvas.addEventListener('webglcontextrestored', cbContextRestored, false);
-      window.addEventListener('dragenter', cbStopAndPrevent, false);
-      window.addEventListener('dragover', cbStopAndPrevent, false);
-      window.addEventListener('drop', cbLoadFiles, false);
-      document.getElementById('fileopen').addEventListener('change', cbLoadFiles, false);
-
-      this.removeCallback = function () {
-        this._hammer.options.enable = false;
-
-        // mouse
-        canvas.removeEventListener('mousedown', cbMouseDown, false);
-        canvas.removeEventListener('mouseup', cbMouseUp, false);
-        canvas.removeEventListener('mouseout', cbMouseOut, false);
-        canvas.removeEventListener('mouseover', cbMouseOver, false);
-        canvas.removeEventListener('mousemove', cbMouseMove, false);
-        canvas.removeEventListener('mousewheel', cbMouseWheel, false);
-        canvas.removeEventListener('DOMMouseScroll', cbMouseWheel, false);
-
-        // misc
-        canvas.removeEventListener('webglcontextlost', cbContextLost, false);
-        canvas.removeEventListener('webglcontextrestored', cbContextRestored, false);
-        window.removeEventListener('dragenter', cbStopAndPrevent, false);
-        window.removeEventListener('dragover', cbStopAndPrevent, false);
-        window.removeEventListener('drop', cbLoadFiles, false);
-        document.getElementById('fileopen').removeEventListener('change', cbLoadFiles, false);
-      };
+    resetCameraScene: function () {
+      var pivot = [0.0, 0.0, 0.0];
+      var zoom = 70.0;
+      if (this._meshes.length > 0) {
+        var box = this.computeBoundingBoxMeshes(this._meshes);
+        zoom = 0.3 * vec3.dist([box[0], box[1], box[2]], [box[3], box[4], box[5]]);
+        zoom *= this._camera.computeFrustumFit();
+        vec3.set(pivot, (box[0] + box[3]) * 0.5, (box[1] + box[4]) * 0.5, (box[2] + box[5]) * 0.5);
+      }
+      this._camera.setAndFocusOnPivot(pivot, zoom);
+      this.render();
     },
-    stopAndPrevent: function (event) {
-      event.stopPropagation();
-      event.preventDefault();
-    },
-    removeEvents: function () {
-      if (this.removeCallback) this.removeCallback();
-    },
-    /** Return the file type */
+    ////////////////
+    // LOAD FILES
+    ////////////////
     getFileType: function (name) {
       var lower = name.toLowerCase();
       if (lower.endsWith('.obj')) return 'obj';
@@ -218,7 +238,6 @@ define([
       if (lower.endsWith('.ply')) return 'ply';
       return;
     },
-    /** Load file */
     loadFiles: function (event) {
       event.stopPropagation();
       event.preventDefault();
@@ -237,7 +256,7 @@ define([
       var reader = new FileReader();
       var self = this;
       reader.onload = function (evt) {
-        self.loadScene(evt.target.result, fileType, self._autoMatrix);
+        self.loadScene(evt.target.result, fileType);
         document.getElementById('fileopen').value = '';
       };
 
@@ -246,43 +265,62 @@ define([
       else
         reader.readAsArrayBuffer(file);
     },
-    onContextLost: function () {
-      window.alert('Oops... WebGL context lost.');
+    ////////////////
+    // MOUSE EVENTS
+    ////////////////
+    onMouseDown: function (event) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      this._gui.callFunc('onMouseDown', event);
+      this.onDeviceDown(event);
     },
-    onContextRestored: function () {
-      window.alert('Wow... Context is restored.');
+    onMouseMove: function (event) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      this._gui.callFunc('onMouseMove', event);
+      this.onDeviceMove(event);
     },
-    onMouseOver: function () {
+    onMouseOver: function (event) {
       this._focusGui = false;
+      this._gui.callFunc('onMouseOver', event);
     },
     onMouseOut: function (event) {
       this._focusGui = true;
+      this._gui.callFunc('onMouseOut', event);
       this.onMouseUp(event);
     },
     onMouseUp: function (event) {
       event.preventDefault();
+
+      this._gui.callFunc('onMouseUp', event);
       this.onDeviceUp();
-    },
-    onDeviceUp: function () {
-      this._canvas.style.cursor = 'default';
-      Multimesh.RENDER_HINT = Multimesh.NONE;
-      this._sculpt.end();
-      if (this._action === 'MASK_EDIT') {
-        if (this._mesh) {
-          if (this._lastMouseX === this._maskX && this._lastMouseY === this._maskY)
-            this.getSculpt().getTool('MASKING').invert();
-          else
-            this.getSculpt().getTool('MASKING').clear();
-        }
-      }
-      this._action = 'NOTHING';
-      this.render();
     },
     onMouseWheel: function (event) {
       event.stopPropagation();
       event.preventDefault();
+
+      this._gui.callFunc('onMouseWheel', event);
       var dir = event.wheelDelta === undefined ? -event.detail : event.wheelDelta;
       this.onDeviceWheel(dir > 0 ? 1 : -1);
+    },
+    ////////////////
+    // HANDLES EVENTS
+    ////////////////
+    onDeviceUp: function () {
+      this.setCanvasCursor('default');
+      Multimesh.RENDER_HINT = Multimesh.NONE;
+      this._sculpt.end();
+      if (this._action === 'MASK_EDIT' && this._mesh) {
+        if (this._lastMouseX === this._maskX && this._lastMouseY === this._maskY)
+          this.getSculpt().getTool('MASKING').invert();
+        else
+          this.getSculpt().getTool('MASKING').clear();
+      }
+      this._action = 'NOTHING';
+      this.render();
+      this._states.cleanNoop();
     },
     onDeviceWheel: function (dir) {
       if (dir > 0.0 && !this._isWheelingIn) {
@@ -295,30 +333,21 @@ define([
       // workaround for "end mouse wheel" event
       if (this._timerEndWheel)
         window.clearTimeout(this._timerEndWheel);
-      this._timerEndWheel = window.setTimeout(this.endWheel.bind(this), 300);
+      this._timerEndWheel = window.setTimeout(this._endWheel.bind(this), 300);
     },
-    endWheel: function () {
+    _endWheel: function () {
       Multimesh.RENDER_HINT = Multimesh.NONE;
       this._isWheelingIn = false;
       this.render();
     },
     setMousePosition: function (event) {
-      this._mouseX = event.pageX - this._canvas.offsetLeft;
-      this._mouseY = event.pageY - this._canvas.offsetTop;
-    },
-    onMouseDown: function (event) {
-      event.stopPropagation();
-      event.preventDefault();
-      this.onDeviceDown(event);
-    },
-    onMouseMove: function (event) {
-      event.stopPropagation();
-      event.preventDefault();
-      this.onDeviceMove(event);
+      this._mouseX = this._pixelRatio * (event.pageX - this._canvasOffsetLeft);
+      this._mouseY = this._pixelRatio * (event.pageY - this._canvasOffsetTop);
     },
     onDeviceDown: function (event) {
       if (this._focusGui)
         return;
+
       this.setMousePosition(event);
 
       var mouseX = this._mouseX;
@@ -330,7 +359,7 @@ define([
 
       var pickedMesh = this._picking.getMesh();
       if (button === MOUSE_LEFT && pickedMesh)
-        this._canvas.style.cursor = 'none';
+        this.setCanvasCursor('none');
 
       if (button === MOUSE_RIGHT && event.ctrlKey)
         this._action = 'CAMERA_ZOOM';
@@ -402,5 +431,5 @@ define([
 
   Utils.makeProxy(Scene, SculptGL);
 
-  return SculptGL;
+  module.exports = SculptGL;
 });

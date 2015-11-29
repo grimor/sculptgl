@@ -1,4 +1,4 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
 
@@ -34,6 +34,7 @@ define([], function () {
     fileImportTitle: null,
     fileAdd: 'Add (obj, sgl, ply, stl)',
     fileAutoMatrix: null,
+    fileVertexSRGB: null,
     fileExportMeshTitle: null,
     fileExportSceneTitle: null,
     fileExportSGL: null,
@@ -73,7 +74,7 @@ define([], function () {
     multiresWarnBigMesh: null,
     // 
     // 
-
+    //
     multiresNotReversible: null,
     // 
 
@@ -92,15 +93,15 @@ define([], function () {
 
     // sculpt
     sculptTitle: null,
-    sculptBrush: 'ブラシ (1)',
-    sculptInflate: '膨張 (2)',
-    sculptTwist: '回転 (3)',
-    sculptSmooth: 'スムーズ化 (4 or -Shift)',
-    sculptFlatten: 'フラット化 (5)',
-    sculptPinch: 'つまむ (6)',
-    sculptCrease: 'しわ (7)',
-    sculptDrag: 'ドラッグ (8)',
-    sculptPaint: 'ペイント (9)',
+    sculptBrush: 'ブラシ',
+    sculptInflate: '膨張',
+    sculptTwist: '回転',
+    sculptSmooth: 'スムーズ化 (-Shift)',
+    sculptFlatten: 'フラット化',
+    sculptPinch: 'つまむ',
+    sculptCrease: 'しわ',
+    sculptDrag: 'ドラッグ',
+    sculptPaint: 'ペイント',
     sculptMasking: null,
     sculptMove: null,
     sculptLocalScale: null,
@@ -163,17 +164,22 @@ define([], function () {
     renderingShader: 'シェーダー',
     renderingMaterial: null,
     renderingImportUV: null,
+    renderingImportMatcap: null,
     renderingExtra: null,
-    renderingFlat: 'フラットシェーディング (slower)',
-    renderingWireframe: 'ワイヤーフレーム (slower)',
+    renderingFlat: 'フラットシェーディング',
+    renderingWireframe: 'ワイヤーフレーム (W)',
     renderingExposure: null,
     renderingEnvironment: null,
     renderingIsolate: null,
+    renderingFilmic: null,
 
     // contour
     contour: null,
     contourShow: null,
     contourColor: null,
+
+    // pixel ratio
+    resolution: null,
 
     // matcaps
     matcapPearl: null,
@@ -181,11 +187,6 @@ define([], function () {
     matcapSkin: 'スキン',
     matcapGreen: null,
     matcapWhite: null,
-    matcapBronze: 'ブロンス',
-    matcapChavant: 'クレイ',
-    matcapDrink: 'ドリンク',
-    matcapRedVelvet: 'レッドベレット',
-    matcapOrange: 'オレンジ',
 
     // sketchfab
     sketchfabTitle: 'Sketchfabへ移動',
@@ -213,5 +214,5 @@ define([], function () {
     envBryantPark: null
   };
 
-  return TR;
+  module.exports = TR;
 });

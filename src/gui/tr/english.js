@@ -1,4 +1,4 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
 
@@ -34,6 +34,7 @@ define([], function () {
     fileImportTitle: 'Import',
     fileAdd: 'Add (obj, sgl, ply, stl)',
     fileAutoMatrix: 'Scale and center',
+    fileVertexSRGB: 'sRGB vertex color',
     fileExportMeshTitle: 'Export Mesh',
     fileExportSceneTitle: 'Export Scene',
     fileExportSGL: 'Save .sgl (SculptGL)',
@@ -92,17 +93,17 @@ define([], function () {
 
     // sculpt
     sculptTitle: 'Sculpting & Painting',
-    sculptBrush: 'Brush (1)',
-    sculptInflate: 'Inflate (2)',
-    sculptTwist: 'Twist (3)',
-    sculptSmooth: 'Smooth (4 or -Shift)',
-    sculptFlatten: 'Flatten (5)',
-    sculptPinch: 'Pinch (6)',
-    sculptCrease: 'Crease (7)',
-    sculptDrag: 'Drag (8)',
-    sculptPaint: 'Paint (9)',
+    sculptBrush: 'Brush',
+    sculptInflate: 'Inflate',
+    sculptTwist: 'Twist',
+    sculptSmooth: 'Smooth (-Shift)',
+    sculptFlatten: 'Flatten',
+    sculptPinch: 'Pinch',
+    sculptCrease: 'Crease',
+    sculptDrag: 'Drag',
+    sculptPaint: 'Paint',
     sculptMasking: 'Masking (-Ctrl)',
-    sculptMove: 'Move (0)',
+    sculptMove: 'Move',
     sculptLocalScale: 'Local scale',
     sculptTransform: 'Transform (E)',
 
@@ -125,7 +126,7 @@ define([], function () {
     sculptClay: 'Clay',
     sculptAccumulate: 'Accumulate (no limit per stroke)',
     sculptColorGlobal: 'Global',
-    sculptPickColor: 'Material / Color picker',
+    sculptPickColor: 'Material / Color picker (-S)',
     sculptTangentialSmoothing: 'Relax only',
     sculptTopologicalCheck: 'Topological check',
     sculptMoveAlongNormal: 'Move along normal (N or -Alt)',
@@ -163,17 +164,22 @@ define([], function () {
     renderingShader: 'Shader',
     renderingMaterial: 'Material',
     renderingImportUV: 'Import (jpg, png...)',
+    renderingImportMatcap: 'Import (jpg, png...)',
     renderingExtra: 'Extra',
-    renderingFlat: 'flat (slower)',
-    renderingWireframe: 'wireframe (slower)',
+    renderingFlat: 'Flat shading',
+    renderingWireframe: 'Wireframe (W)',
     renderingExposure: 'Exposure',
     renderingEnvironment: 'Environment',
     renderingIsolate: 'Isolate/Show (I)',
+    renderingFilmic: 'Filmic tonemapping',
 
     // contour
     contour: 'Contour',
     contourShow: 'Show contour',
     contourColor: 'Color',
+
+    // pixel ratio
+    resolution: 'Resolution',
 
     // matcaps
     matcapPearl: 'Pearl',
@@ -181,11 +187,6 @@ define([], function () {
     matcapSkin: 'Skin',
     matcapGreen: 'Green',
     matcapWhite: 'White',
-    matcapBronze: 'Bronze',
-    matcapChavant: 'Chavant',
-    matcapDrink: 'Drink',
-    matcapRedVelvet: 'Red Velvet',
-    matcapOrange: 'Orange',
 
     // sketchfab
     sketchfabTitle: 'Go to Sketchfab !',
@@ -213,5 +214,5 @@ define([], function () {
     envBryantPark: 'BryantPark'
   };
 
-  return TR;
+  module.exports = TR;
 });

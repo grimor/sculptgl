@@ -1,10 +1,11 @@
-define([
-  'misc/Utils',
-  'render/Render',
-  'render/Buffer'
-], function (Utils, Render, Buffer) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var Utils = require('misc/Utils');
+  var Render = require('mesh/Render');
+  var Shader = require('render/ShaderLib');
+  var Buffer = require('render/Buffer');
 
   var LowRender = function (render) {
     this._renderOrigin = render; // the base render
@@ -15,15 +16,12 @@ define([
   };
 
   LowRender.prototype = {
-    /** Return base render */
     getRenderOrigin: function () {
       return this._renderOrigin;
     },
-    /** Return index buffer */
     getIndexBuffer: function () {
       return this._indexBuffer;
     },
-    /** Return wireframe buffer */
     getWireframeBuffer: function () {
       return this._wireframeBuffer;
     },
@@ -31,19 +29,16 @@ define([
     isUsingDrawArrays: function () {
       return false;
     },
-    /** Updates buffer */
     updateBuffers: function (mesh) {
       this.getIndexBuffer().update(mesh.getTriangles());
       this.getWireframeBuffer().update(mesh.getWireframe());
     },
-    /** Render the mesh */
     render: function (main) {
-      var ro = this.getRenderOrigin();
-      ro._shader.draw(this, main);
-      if (ro.getShowWireframe())
-        ro._shaderWireframe.draw(this, main);
+      Shader[this.getShaderName()].getOrCreate(this.getGL()).draw(this, main);
     },
-    /** Free gl memory */
+    renderWireframe: function (main) {
+      Shader.WIREFRAME.getOrCreate(this.getGL()).draw(this, main);
+    },
     release: function () {
       this.getIndexBuffer().release();
       this.getWireframeBuffer().release();
@@ -56,5 +51,5 @@ define([
     };
   });
 
-  return LowRender;
+  module.exports = LowRender;
 });

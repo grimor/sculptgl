@@ -1,12 +1,12 @@
-define([
-  'lib/glMatrix',
-  'misc/getUrlOptions',
-  'render/shaders/ShaderBase',
-  'text!render/shaders/glsl/pbr.glsl',
-  'gui/GuiTR'
-], function (glm, getUrlOptions, ShaderBase, pbrGLSL, TR) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var glm = require('lib/glMatrix');
+  var getOptionsURL = require('misc/getOptionsURL');
+  var ShaderBase = require('render/shaders/ShaderBase');
+  var pbrGLSL = require('text!render/shaders/glsl/pbr.glsl');
+  var TR = require('gui/GuiTR');
 
   var mat3 = glm.mat3;
 
@@ -38,7 +38,7 @@ define([
     sph: [0.583073, 0.794556, 0.966801, -0.218899, -0.334516, -0.690954, -0.0581536, -0.0912214, -0.13112, 0.0180201, 0.0683966, 0.157536, -0.0427475, -0.073612, -0.112892, 0.0490024, 0.06527, 0.0841072, -0.0243839, -0.0429701, -0.0792229, -0.0441213, -0.0562622, -0.0728875, -0.0267015, -0.0586719, -0.11978],
     name: TR('envBryantPark')
   }];
-  var opts = getUrlOptions();
+  var opts = getOptionsURL();
   ShaderPBR.idEnv = Math.min(opts.environment, ShaderPBR.environments.length - 1);
   ShaderPBR.exposure = Math.min(opts.exposure, 5);
 
@@ -92,15 +92,14 @@ define([
     pbrGLSL,
     '',
     'void main(void) {',
-    '  vec3 normal = normalize(gl_FrontFacing ? vNormal : -vNormal);',
-    '  vec3 eye = normalize(vVertex);',
-    '',
+    '  vec3 normal = getNormal();',
     '  float roughness = max( 0.0001, vRoughness );',
-    '  vec3 albedo = vAlbedo * (1.0 - vMetallic);',
-    '  vec3 specular = mix( vec3(0.04), vAlbedo, vMetallic);',
+    '  vec3 linColor = sRGBToLinear(vAlbedo);',
+    '  vec3 albedo = linColor * (1.0 - vMetallic);',
+    '  vec3 specular = mix( vec3(0.04), linColor, vMetallic);',
     '',
-    '  vec3 color = uExposure * computeIBL_UE4( normal, -eye, albedo, roughness, specular );',
-    '  gl_FragColor = vec4(applyMaskAndSym(color.rgb), uAlpha);',
+    '  vec3 color = uExposure * computeIBL_UE4( normal, -normalize(vVertex), albedo, roughness, specular );',
+    '  gl_FragColor = encodeFragColor(color, uAlpha);',
     '}'
   ].join('\n');
 
@@ -174,5 +173,5 @@ define([
     ShaderBase.updateUniforms.call(this, render, main);
   };
 
-  return ShaderPBR;
+  module.exports = ShaderPBR;
 });

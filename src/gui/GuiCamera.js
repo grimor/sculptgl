@@ -1,8 +1,8 @@
-define([
-  'gui/GuiTR'
-], function (TR) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var TR = require('gui/GuiTR');
 
   var GuiCamera = function (guiParent, ctrlGui) {
     this._main = ctrlGui._main; // main application
@@ -45,8 +45,6 @@ define([
       optionsMode.PLANE = TR('cameraPlane');
       menu.addCombobox('', camera.getMode(), this.onCameraModeChange.bind(this), optionsMode);
       menu.addCheckbox(TR('cameraPivot'), camera.getUsePivot(), this.onPivotChange.bind(this));
-
-      this.addEvents();
     },
     onCameraModeChange: function (value) {
       this._camera.setMode(value);
@@ -61,21 +59,6 @@ define([
       this._camera.setFov(value);
       this._main.render();
     },
-    addEvents: function () {
-      var cbKeyDown = this.onKeyDown.bind(this);
-      var cbKeyUp = this.onKeyUp.bind(this);
-      window.addEventListener('keydown', cbKeyDown, false);
-      window.addEventListener('keyup', cbKeyUp, false);
-      this.removeCallback = function () {
-        window.removeEventListener('keydown', cbKeyDown, false);
-        window.removeEventListener('keyup', cbKeyUp, false);
-      };
-    },
-    /** Remove events */
-    removeEvents: function () {
-      if (this.removeCallback) this.removeCallback();
-    },
-    /** Key pressed event */
     onKeyDown: function (event) {
       if (event.handled === true)
         return;
@@ -176,5 +159,5 @@ define([
     }
   };
 
-  return GuiCamera;
+  module.exports = GuiCamera;
 });

@@ -1,13 +1,13 @@
-define([
-  'lib/glMatrix',
-  'misc/getUrlOptions',
-  'misc/Utils',
-  'render/Attribute',
-  'text!render/shaders/glsl/colorSpace.glsl',
-  'text!render/shaders/glsl/curvature.glsl'
-], function (glm, getUrlOptions, Utils, Attribute, colorSpaceGLSL, curvatureGLSL) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var glm = require('lib/glMatrix');
+  var getOptionsURL = require('misc/getOptionsURL');
+  var Utils = require('misc/Utils');
+  var Attribute = require('render/Attribute');
+  var colorSpaceGLSL = require('text!render/shaders/glsl/colorSpace.glsl');
+  var curvatureGLSL = require('text!render/shaders/glsl/curvature.glsl');
 
   var vec3 = glm.vec3;
 
@@ -22,9 +22,9 @@ define([
     color: true
   };
 
-  ShaderBase.showSymmetryLine = getUrlOptions().mirrorline;
+  ShaderBase.showSymmetryLine = getOptionsURL().mirrorline;
   ShaderBase.uniformNames = {};
-  ShaderBase.uniformNames.commonUniforms = ['uMV', 'uMVP', 'uN', 'uEM', 'uEN', 'uPlaneO', 'uPlaneN', 'uScale', 'uCurvature', 'uAlpha', 'uFov'];
+  ShaderBase.uniformNames.commonUniforms = ['uMV', 'uMVP', 'uN', 'uEM', 'uEN', 'uFlat', 'uPlaneO', 'uPlaneN', 'uSym', 'uCurvature', 'uAlpha', 'uFov'];
 
   ShaderBase.strings = {};
   ShaderBase.strings.colorSpaceGLSL = colorSpaceGLSL;
@@ -39,34 +39,48 @@ define([
   ShaderBase.strings.fragColorUniforms = [
     'uniform vec3 uPlaneN;',
     'uniform vec3 uPlaneO;',
-    'uniform float uScale;',
+    'uniform int uSym;',
     'uniform float uCurvature;',
     'uniform float uFov;',
     'varying float vMasking;',
+    'uniform int uFlat;'
   ].join('\n');
   ShaderBase.strings.fragColorFunction = [
     curvatureGLSL,
-    'vec3 applyMaskAndSym(const in vec3 frag) {',
+    colorSpaceGLSL,
+    '#extension GL_OES_standard_derivatives : enable',
+    'vec3 getNormal() {',
+    '  #ifndef GL_OES_standard_derivatives',
+    '    return normalize(gl_FrontFacing ? vNormal : -vNormal);',
+    '  #else',
+    '    return uFlat == 0 ? normalize(gl_FrontFacing ? vNormal : -vNormal) : -normalize(cross(dFdy(vVertex), dFdx(vVertex)));',
+    '  #endif',
+    '}',
+    'vec4 encodeFragColor(const in vec3 frag, const in float alpha) {',
     '  vec3 col = computeCurvature(vVertex, vNormal, frag, uCurvature, uFov);',
     '  col *= (0.3 + 0.7 * vMasking);',
-    '  if(uScale > 0.0 && abs(dot(uPlaneN, vVertex - uPlaneO)) < 0.15 / uScale)',
-    '      return min(col * 1.5, 1.0);',
-    '  return col;',
+    '  if(uSym == 1 && abs(dot(uPlaneN, vVertex - uPlaneO)) < 0.15)',
+    '      col = min(col * 1.5, 1.0);',
+    '  return alpha != 1.0 ? vec4(col * alpha, alpha) : encodeRGBM(col);',
     '}'
   ].join('\n');
 
   var moveExtension = function (str) {
-    // move extension enable/require to the top of file (kind of a hack)
-    var matches = str.match(/^.*(\/\/( *)#extension).*/gm);
+    // move extension enable/require to the top of file
+    var matches = str.match(/^\s*(#extension).*/gm);
     if (!matches) return str;
     var extMap = {};
+    var exts = '';
+
     for (var i = 0, nb = matches.length; i < nb; ++i) {
       var ext = matches[i].substr(matches[i].indexOf('#extension'));
+      str = str.replace(matches[i], '');
       if (extMap[ext])
         continue;
       extMap[ext] = true;
-      str = ext + '\n' + str;
+      exts += ext + '\n';
     }
+    str = exts + str;
     return str;
   };
 
@@ -133,9 +147,10 @@ define([
       gl.uniformMatrix4fv(uniforms.uMVP, false, mesh.getMVP());
       gl.uniformMatrix3fv(uniforms.uN, false, mesh.getN());
 
+      gl.uniform1i(uniforms.uFlat, mesh.getFlatShading());
       gl.uniform3fv(uniforms.uPlaneO, vec3.transformMat4(tmp, mesh.getSymmetryOrigin(), mesh.getMV()));
-      gl.uniform3fv(uniforms.uPlaneN, vec3.transformMat3(tmp, mesh.getSymmetryNormal(), mesh.getN()));
-      gl.uniform1f(uniforms.uScale, useSym ? mesh.getScale() : -1.0);
+      gl.uniform3fv(uniforms.uPlaneN, vec3.normalize(tmp, vec3.transformMat3(tmp, mesh.getSymmetryNormal(), mesh.getN())));
+      gl.uniform1i(uniforms.uSym, useSym ? 1 : 0);
       gl.uniform1f(uniforms.uAlpha, mesh.getOpacity());
 
       gl.uniform1f(uniforms.uCurvature, mesh.getCurvature());
@@ -148,17 +163,7 @@ define([
     gl.useProgram(this.program);
     this.bindAttributes(render);
     this.updateUniforms(render, main);
-
-    var isTR = render.getMesh().isTransparent();
-    if (isTR) {
-      gl.depthMask(false);
-      gl.enable(gl.BLEND);
-    }
     this.drawBuffer(render);
-    if (isTR) {
-      gl.disable(gl.BLEND);
-      gl.depthMask(true);
-    }
   };
   ShaderBase.drawBuffer = function (render) {
     var gl = render.getGL();
@@ -171,10 +176,7 @@ define([
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
   };
-  ShaderBase.onLoadTexture0 = function (gl, tex, main) {
-    this.texture0 = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.texture0);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+  ShaderBase.setTextureParameters = function (gl, tex) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     if (Utils.isPowerOfTwo(tex.width) && Utils.isPowerOfTwo(tex.height)) {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
@@ -186,6 +188,12 @@ define([
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     }
+  };
+  ShaderBase.onLoadTexture0 = function (gl, tex, main) {
+    this.texture0 = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.texture0);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+    ShaderBase.setTextureParameters(gl, tex);
     gl.bindTexture(gl.TEXTURE_2D, null);
     if (main)
       main.render();
@@ -225,5 +233,5 @@ define([
     return obj;
   };
 
-  return ShaderBase;
+  module.exports = ShaderBase;
 });

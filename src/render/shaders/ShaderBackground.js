@@ -1,9 +1,9 @@
-define([
-  'render/shaders/ShaderBase',
-  'render/Attribute'
-], function (ShaderBase, Attribute) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var ShaderBase = require('render/shaders/ShaderBase');
+  var Attribute = require('render/Attribute');
 
   var ShaderBackground = ShaderBase.getCopy();
   ShaderBackground.vertexName = ShaderBackground.fragmentName = 'Background';
@@ -29,7 +29,7 @@ define([
     'varying vec2 vTexCoord;',
     ShaderBase.strings.colorSpaceGLSL,
     'void main() {',
-    '  gl_FragColor = sRGBToLinear(texture2D(uTexture0, vTexCoord));',
+    '  gl_FragColor = encodeRGBM(sRGBToLinear(texture2D(uTexture0, vTexCoord)).rgb);',
     '}'
   ].join('\n');
 
@@ -54,9 +54,9 @@ define([
   ShaderBackground.updateUniforms = function (bg) {
     var gl = bg.getGL();
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, bg._backgroundLoc);
+    gl.bindTexture(gl.TEXTURE_2D, bg.getTexture());
     gl.uniform1i(this.uniforms.uTexture0, 0);
   };
 
-  return ShaderBackground;
+  module.exports = ShaderBackground;
 });

@@ -1,4 +1,4 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
 
@@ -8,6 +8,9 @@ define([], function () {
   };
 
   StateCustom.prototype = {
+    isNoop: function () {
+      return !this._undocb;
+    },
     undo: function () {
       this._undocb();
     },
@@ -19,5 +22,5 @@ define([], function () {
     }
   };
 
-  return StateCustom;
+  module.exports = StateCustom;
 });

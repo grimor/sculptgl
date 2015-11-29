@@ -1,13 +1,13 @@
-define([
-  'misc/getUrlOptions',
-  'gui/tr/english',
-  'gui/tr/chinese',
-  'gui/tr/japanese',
-  'gui/tr/korean',
-  'gui/tr/russian'
-], function (getUrlOptions, english, chinese, japanese, korean, russian) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var getOptionsURL = require('misc/getOptionsURL');
+  var english = require('gui/tr/english');
+  var chinese = require('gui/tr/chinese');
+  var japanese = require('gui/tr/japanese');
+  var korean = require('gui/tr/korean');
+  var russian = require('gui/tr/russian');
 
   var GuiTR = function (key) {
     var str = GuiTR.languages[GuiTR.select][key] || GuiTR.languages.english[key];
@@ -35,7 +35,7 @@ define([
   else if (language === 'ko') GuiTR.select = '한국어';
   else if (language === 'ru') GuiTR.select = 'русский';
 
-  switch (getUrlOptions().language) {
+  switch (getOptionsURL().language) {
   case 'english':
     GuiTR.select = 'english';
     break;
@@ -53,5 +53,5 @@ define([
     break;
   }
 
-  return GuiTR;
+  module.exports = GuiTR;
 });

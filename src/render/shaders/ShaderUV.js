@@ -1,9 +1,9 @@
-define([
-  'render/shaders/ShaderBase',
-  'render/Attribute'
-], function (ShaderBase, Attribute) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var ShaderBase = require('render/shaders/ShaderBase');
+  var Attribute = require('render/Attribute');
 
   var ShaderUV = ShaderBase.getCopy();
   ShaderUV.vertexName = ShaderUV.fragmentName = 'ShowUV';
@@ -53,10 +53,9 @@ define([
     'uniform float uAlpha;',
     ShaderBase.strings.fragColorUniforms,
     ShaderBase.strings.fragColorFunction,
-    ShaderBase.strings.colorSpaceGLSL,
     'void main() {',
-    '  vec3 fragColor = texture2D(uTexture0, vTexCoord).rgb * vColor;',
-    '  gl_FragColor = vec4(applyMaskAndSym(sRGBToLinear(fragColor)), uAlpha);',
+    '  vec3 color = sRGBToLinear(texture2D(uTexture0, vTexCoord).rgb) * sRGBToLinear(vColor);',
+    '  gl_FragColor = encodeFragColor(color, uAlpha);',
     '}'
   ].join('\n');
 
@@ -84,5 +83,5 @@ define([
     ShaderBase.updateUniforms.call(this, render, main);
   };
 
-  return ShaderUV;
+  module.exports = ShaderUV;
 });

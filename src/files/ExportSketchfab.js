@@ -1,10 +1,10 @@
-define([
-  'gui/GuiTR',
-  'lib/zip',
-  'files/ExportPLY'
-], function (TR, zip, ExportPLY) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var TR = require('gui/GuiTR');
+  var zip = require('lib/zip');
+  var ExportPLY = require('files/ExportPLY');
 
   var Export = {};
 
@@ -56,7 +56,8 @@ define([
     zip.useWebWorkers = true;
     zip.workerScriptsPath = 'worker/';
     zip.createWriter(new zip.BlobWriter('application/zip'), function (zipWriter) {
-      zipWriter.add('yourMesh.ply', new zip.BlobReader(ExportPLY.exportBinaryPLY(main.getMeshes(), true)), function () {
+      var data = ExportPLY.exportBinaryPLY(main.getMeshes(), true);
+      zipWriter.add('yourMesh.ply', new zip.BlobReader(data), function () {
         zipWriter.close(Export.exportFileSketchfab.bind(this, main, key, xhr));
       });
     }, onerror);
@@ -73,5 +74,5 @@ define([
     xhr.send(fd);
   };
 
-  return Export;
+  module.exports = Export;
 });

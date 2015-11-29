@@ -1,4 +1,4 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
 
@@ -34,6 +34,7 @@ define([], function () {
     fileImportTitle: 'Импорт',
     fileAdd: 'Добавить(obj,sgl,ply,stl)',
     fileAutoMatrix: 'Масштаб-вид',
+    fileVertexSRGB: null,
     fileExportMeshTitle: 'Эксорт модели',
     fileExportSceneTitle: 'Экспорт сцены',
     fileExportSGL: 'Сохранить .sgl',
@@ -92,17 +93,17 @@ define([], function () {
 
     // sculpt
     sculptTitle: 'Лепить и красить',
-    sculptBrush: '3D Кисть (1)',
-    sculptInflate: '3D Надуть (2)',
-    sculptTwist: '3D Закручивание (3)',
-    sculptSmooth: '3D Сгладить (4 or -Shift)',
-    sculptFlatten: '3D Расплющить (5)',
-    sculptPinch: '3D Сдавить (6)',
-    sculptCrease: '3D Складка (7)',
-    sculptDrag: '3D Тянучка (8)',
-    sculptMove: '3D Перемещать (0)',
+    sculptBrush: '3D Кисть',
+    sculptInflate: '3D Надуть',
+    sculptTwist: '3D Закручивание',
+    sculptSmooth: '3D Сгладить (-Shift)',
+    sculptFlatten: '3D Расплющить',
+    sculptPinch: '3D Сдавить',
+    sculptCrease: '3D Складка',
+    sculptDrag: '3D Тянучка',
+    sculptMove: '3D Перемещать',
     sculptLocalScale: '3D масштабирование',
-    sculptPaint: '2D Кисть (9)',
+    sculptPaint: '2D Кисть',
     sculptMasking: '2D Маска (-Ctrl)',
     sculptTransform: null,
 
@@ -125,7 +126,7 @@ define([], function () {
     sculptClay: 'Без учета содержимого',
     sculptAccumulate: 'Наращивать без ограничений',
     sculptColorGlobal: 'Глобальный',
-    sculptPickColor: 'Пипетка материал',
+    sculptPickColor: 'Пипетка материал (-S)',
     sculptTangentialSmoothing: null,
     sculptTopologicalCheck: null,
     sculptMoveAlongNormal: null,
@@ -163,17 +164,22 @@ define([], function () {
     renderingShader: 'Шейдеры',
     renderingMaterial: 'Материал',
     renderingImportUV: 'Импорт (jpg, png...)',
+    renderingImportMatcap: 'Импорт (jpg, png...)',
     renderingExtra: 'Дополнительно',
     renderingFlat: 'Плоское-рельефное',
-    renderingWireframe: 'Каркас',
+    renderingWireframe: 'Каркас (W)',
     renderingExposure: 'Экспозиция',
     renderingEnvironment: 'Отражение',
     renderingIsolate: 'Изолировать / Показать (I)',
+    renderingFilmic: null,
 
     // contour
     contour: 'Контур',
     contourShow: 'Показать контур',
     contourColor: 'Цвет',
+
+    // pixel ratio
+    resolution: null,
 
     // matcaps
     matcapPearl: 'Жемчуг',
@@ -181,11 +187,6 @@ define([], function () {
     matcapSkin: 'Кожа',
     matcapGreen: 'Зеленый',
     matcapWhite: 'Белый',
-    matcapBronze: 'Бронза',
-    matcapChavant: 'Пластелин',
-    matcapDrink: 'Жидкость',
-    matcapRedVelvet: 'Красный бархат',
-    matcapOrange: 'Оранжевый',
 
     // sketchfab
     sketchfabTitle: 'В Sketchfab.com ',
@@ -213,14 +214,5 @@ define([], function () {
     envBryantPark: 'Бра́йант-парк'
   };
 
-  return TR;
+  module.exports = TR;
 });
-
-// ui extra stuffs (yagui lib)
-// Extra: 'Настройка интерфейса',
-// Overall: 'Общие'
-// Advanced: 'Дополнительно';
-// Widget: 'Виджет',
-// Back: 'Фон',
-// Text: 'Текст',
-// Border: 'Бордюр',

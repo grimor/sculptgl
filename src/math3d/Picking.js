@@ -1,13 +1,12 @@
-define([
-  'lib/glMatrix',
-  'math3d/Geometry',
-  'mesh/Mesh',
-  'misc/Tablet',
-  'misc/Utils',
-  'gui/GuiTR'
-], function (glm, Geometry, Mesh, Tablet, Utils, TR) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var glm = require('lib/glMatrix');
+  var Geometry = require('math3d/Geometry');
+  var Tablet = require('misc/Tablet');
+  var Utils = require('misc/Utils');
+  var TR = require('gui/GuiTR');
 
   var vec3 = glm.vec3;
   var mat4 = glm.mat4;
@@ -47,8 +46,9 @@ define([
     var newAlpha = {};
     newAlpha._name = name;
     newAlpha._texture = u8;
-    newAlpha._ratioX = Math.min(1.0, width / height);
-    newAlpha._ratioY = Math.min(1.0, height / width);
+    newAlpha._ratioX = Math.max(1.0, width / height);
+    newAlpha._ratioY = Math.max(1.0, height / width);
+    newAlpha._ratioMax = Math.max(this._ratioX, this._ratioY);
     newAlpha._width = width;
     newAlpha._height = height;
     var i = 1;
@@ -69,12 +69,15 @@ define([
 
       var m = this._alphaLookAt;
       var rs = this._alphaSide;
-      var xn = (m[0] * x + m[4] * y + m[8] * z + m[12]) / (this._xSym ? -rs : rs);
-      if (Math.abs(xn) > alpha._ratioX) return 0.0;
-      var yn = (m[1] * x + m[5] * y + m[9] * z + m[13]) / rs;
-      if (Math.abs(yn) > alpha._ratioY) return 0.0;
+
+      var xn = alpha._ratioY * (m[0] * x + m[4] * y + m[8] * z + m[12]) / (this._xSym ? -rs : rs);
+      if (Math.abs(xn) > 1.0) return 0.0;
+
+      var yn = alpha._ratioX * (m[1] * x + m[5] * y + m[9] * z + m[13]) / rs;
+      if (Math.abs(yn) > 1.0) return 0.0;
+
       var aw = alpha._width;
-      xn = (0.5 + xn * 0.5) * aw;
+      xn = (0.5 - xn * 0.5) * aw;
       yn = (0.5 - yn * 0.5) * alpha._height;
       return alpha._texture[(xn | 0) + aw * (yn | 0)] / 255.0;
     },
@@ -147,18 +150,26 @@ define([
       var matInverse = mat4.create();
       var nearPoint = [0.0, 0.0, 0.0];
       return function (meshes, mouseX, mouseY) {
+
+        var main = this._main;
+        if (!meshes) meshes = main.getMeshes();
+        if (mouseX === undefined) mouseX = main._mouseX;
+        if (mouseY === undefined) mouseY = main._mouseY;
+
         var vNear = this.unproject(mouseX, mouseY, 0.0);
         var vFar = this.unproject(mouseX, mouseY, 0.1);
         var nearDistance = Infinity;
         var nearMesh = null;
         var nearFace = -1;
+
         for (var i = 0, nbMeshes = meshes.length; i < nbMeshes; ++i) {
           var mesh = meshes[i];
           mat4.invert(matInverse, mesh.getMatrix());
           vec3.transformMat4(vNearTransform, vNear, matInverse);
           vec3.transformMat4(vFarTransform, vFar, matInverse);
-          if (!this.intersectionRayMesh(mesh, vNearTransform, vFarTransform, mouseX, mouseY))
+          if (!this.intersectionRayMesh(mesh, vNearTransform, vFarTransform))
             continue;
+
           var interTest = this.getIntersectionPoint();
           var testDistance = vec3.dist(vNearTransform, interTest) * mesh.getScale();
           if (testDistance < nearDistance) {
@@ -168,23 +179,29 @@ define([
             nearFace = this.getPickedFace();
           }
         }
+
         this._mesh = nearMesh;
         vec3.copy(this._interPoint, nearPoint);
         this._pickedFace = nearFace;
         if (nearFace !== -1)
-          this.computeLocalAndWorldRadius2(mouseX, mouseY);
+          this.updateLocalAndWorldRadius2();
         return !!nearMesh;
       };
     })(),
     /** Intersection between a ray the mouse position */
     intersectionMouseMesh: function (mesh, mouseX, mouseY) {
+      var main = this._main;
+      if (!mesh) mesh = main.getMesh();
+      if (mouseX === undefined) mouseX = main._mouseX;
+      if (mouseY === undefined) mouseY = main._mouseY;
+
       var vNear = this.unproject(mouseX, mouseY, 0.0);
       var vFar = this.unproject(mouseX, mouseY, 0.1);
       var matInverse = mat4.create();
       mat4.invert(matInverse, mesh.getMatrix());
       vec3.transformMat4(vNear, vNear, matInverse);
       vec3.transformMat4(vFar, vFar, matInverse);
-      return this.intersectionRayMesh(mesh, vNear, vFar, mouseX, mouseY);
+      return this.intersectionRayMesh(mesh, vNear, vFar);
     },
     /** Intersection between a ray and a mesh */
     intersectionRayMesh: (function () {
@@ -194,7 +211,7 @@ define([
       var vertInter = [0.0, 0.0, 0.0];
       var vNear = [0.0, 0.0, 0.0];
       var vFar = [0.0, 0.0, 0.0];
-      return function (mesh, vNearOrig, vFarOrig, mouseX, mouseY) {
+      return function (mesh, vNearOrig, vFarOrig) {
         // resest picking
         this._mesh = null;
         this._pickedFace = -1;
@@ -249,7 +266,7 @@ define([
         }
         if (this._pickedFace !== -1) {
           this._mesh = mesh;
-          this.computeLocalAndWorldRadius2(mouseX, mouseY);
+          this.updateLocalAndWorldRadius2();
           return true;
         }
         this._rLocal2 = 0.0;
@@ -263,15 +280,18 @@ define([
       var vertSculptFlags = mesh.getVerticesSculptFlags();
       var leavesHit = mesh.getLeavesUpdate();
       var inter = this.getIntersectionPoint();
+
       var iFacesInCells = mesh.intersectSphere(inter, rLocal2, leavesHit, mesh.getNbFaces());
       var iVerts = mesh.getVerticesFromFaces(iFacesInCells);
       var nbVerts = iVerts.length;
+
       var sculptFlag = ++Utils.SCULPT_FLAG;
       var pickedVertices = new Uint32Array(Utils.getMemory(4 * nbVerts + 12), 0, nbVerts + 3);
       var acc = 0;
       var itx = inter[0];
       var ity = inter[1];
       var itz = inter[2];
+
       for (var i = 0; i < nbVerts; ++i) {
         var ind = iVerts[i];
         var j = ind * 3;
@@ -283,6 +303,7 @@ define([
           pickedVertices[acc++] = ind;
         }
       }
+
       this._pickedVertices = new Uint32Array(pickedVertices.subarray(0, acc));
       return this._pickedVertices;
     },
@@ -303,7 +324,6 @@ define([
       var idf = this.getPickedFace();
       var pickedVertices = new Uint32Array(Utils.getMemory(4 * nbVertices), 0, nbVertices);
       pickedVertices[0] = fAr[idf * 4];
-      vertSculptFlags[pickedVertices[0]] = sculptFlag;
       var acc = 1;
 
       var inter = this.getIntersectionPoint();
@@ -336,25 +356,27 @@ define([
           pickedVertices[acc++] = idv;
         }
       }
-      this._pickedVertices = new Uint32Array(pickedVertices.subarray(0, acc));
+      this._pickedVertices = new Uint32Array(pickedVertices.subarray(1, acc));
       return this._pickedVertices;
     },
-    /** Compute the selection radius in world and local space */
-    computeLocalAndWorldRadius2: function (mouseX, mouseY) {
-      var mesh = this._mesh;
-      if (!mesh) return;
-      var interPointTransformed = [0.0, 0.0, 0.0];
-      vec3.transformMat4(interPointTransformed, this.getIntersectionPoint(), mesh.getMatrix());
+    computeWorldRadius2: (function () {
+      var inter = [0.0, 0.0, 0.0];
 
-      var screenRadius = this._main.getSculpt().getCurrentTool()._radius || 1;
-      var z = this.project(interPointTransformed)[2];
-      var vCircle = this.unproject(mouseX + (screenRadius * Tablet.getPressureRadius()), mouseY, z);
-      this._rWorld2 = vec3.sqrDist(interPointTransformed, vCircle);
+      return function (ignorePressure) {
 
-      var invScale = 1.0 / mesh.getScale();
-      vec3.scale(interPointTransformed, interPointTransformed, invScale);
-      vec3.scale(vCircle, vCircle, invScale);
-      this._rLocal2 = vec3.sqrDist(interPointTransformed, vCircle);
+        vec3.transformMat4(inter, this.getIntersectionPoint(), this._mesh.getMatrix());
+
+        var offsetX = this._main.getSculpt().getCurrentTool().getScreenRadius();
+        if (!ignorePressure) offsetX *= Tablet.getPressureRadius();
+
+        var screenInter = this.project(inter);
+        return vec3.sqrDist(inter, this.unproject(screenInter[0] + offsetX, screenInter[1], screenInter[2]));
+      };
+    })(),
+    updateLocalAndWorldRadius2: function () {
+      if (!this._mesh) return;
+      this._rWorld2 = this.computeWorldRadius2();
+      this._rLocal2 = this._rWorld2 / this._mesh.getScale2();
     },
     unproject: function (x, y, z) {
       return this._main.getCamera().unproject(x, y, z);
@@ -376,20 +398,20 @@ define([
       var iv3 = fAr[id + 2] * 3;
       var iv4 = fAr[id + 3] * 3;
 
-      var len1 = 1 / vec3.dist(this._interPoint, vAr.subarray(iv1, iv1 + 3));
-      var len2 = 1 / vec3.dist(this._interPoint, vAr.subarray(iv2, iv2 + 3));
-      var len3 = 1 / vec3.dist(this._interPoint, vAr.subarray(iv3, iv3 + 3));
-      var len4 = iv4 >= 0 ? 1 / vec3.dist(this._interPoint, vAr.subarray(iv4, iv4 + 3)) : 0;
+      var len1 = 1.0 / vec3.dist(this._interPoint, vAr.subarray(iv1, iv1 + 3));
+      var len2 = 1.0 / vec3.dist(this._interPoint, vAr.subarray(iv2, iv2 + 3));
+      var len3 = 1.0 / vec3.dist(this._interPoint, vAr.subarray(iv3, iv3 + 3));
+      var len4 = iv4 >= 0 ? 1.0 / vec3.dist(this._interPoint, vAr.subarray(iv4, iv4 + 3)) : 0.0;
 
-      var sum = len1 + len2 + len3 + len4;
+      var invSum = 1.0 / (len1 + len2 + len3 + len4);
       vec3.set(out, 0.0, 0.0, 0.0);
-      vec3.scaleAndAdd(out, out, vField.subarray(iv1, iv1 + 3), len1 / sum);
-      vec3.scaleAndAdd(out, out, vField.subarray(iv2, iv2 + 3), len2 / sum);
-      vec3.scaleAndAdd(out, out, vField.subarray(iv3, iv3 + 3), len3 / sum);
-      if (iv4 >= 0) vec3.scaleAndAdd(out, out, vField.subarray(iv4, iv4 + 3), len4 / sum);
+      vec3.scaleAndAdd(out, out, vField.subarray(iv1, iv1 + 3), len1 * invSum);
+      vec3.scaleAndAdd(out, out, vField.subarray(iv2, iv2 + 3), len2 * invSum);
+      vec3.scaleAndAdd(out, out, vField.subarray(iv3, iv3 + 3), len3 * invSum);
+      if (iv4 >= 0) vec3.scaleAndAdd(out, out, vField.subarray(iv4, iv4 + 3), len4 * invSum);
       return out;
     }
   };
 
-  return Picking;
+  module.exports = Picking;
 });

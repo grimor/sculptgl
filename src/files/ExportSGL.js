@@ -1,8 +1,8 @@
-define([
-  'render/shaders/ShaderBase'
-], function (ShaderBase) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var ShaderBase = require('render/shaders/ShaderBase');
 
   var invert = function (obj) {
     var keys = Object.keys(obj);
@@ -133,7 +133,7 @@ define([
       mesh = meshes[i];
 
       // shader + matcap + wire + alpha + flat 
-      u32a[off++] = stringToInt.SHADER_TO_INT[mesh.getShaderType()];
+      u32a[off++] = stringToInt.SHADER_TO_INT[mesh.getShaderName()];
       u32a[off++] = mesh.getMatcap();
       u32a[off++] = mesh.getShowWireframe();
       u32a[off++] = mesh.getFlatShading();
@@ -196,5 +196,5 @@ define([
     return new Blob([data]);
   };
 
-  return Export;
+  module.exports = Export;
 });

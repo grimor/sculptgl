@@ -1,10 +1,10 @@
-define([
-  'mesh/Mesh',
-  'files/ExportSGL',
-  'render/shaders/ShaderBase'
-], function (Mesh, ExportSGL, ShaderBase) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var Mesh = require('mesh/Mesh');
+  var ExportSGL = require('files/ExportSGL');
+  var ShaderBase = require('render/shaders/ShaderBase');
 
   var intToString = ExportSGL.intToString;
 
@@ -45,8 +45,8 @@ define([
       if (version >= 2) {
         var render = mesh.getRender();
         // we don't have the geometry buffer and data yet so
-        // we don't want to call updateBuffers
-        render.getShader().setType(intToString.INT_TO_SHADER[u32a[off++]]);
+        // we don't want to call updateBuffers (so no call to )
+        render._shaderName = intToString.INT_TO_SHADER[u32a[off++]];
         render.setMatcap(u32a[off++]);
         render._showWireframe = u32a[off++];
         render._flatShading = u32a[off++];
@@ -103,5 +103,5 @@ define([
     return meshes;
   };
 
-  return Import;
+  module.exports = Import;
 });

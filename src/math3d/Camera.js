@@ -1,11 +1,11 @@
-define([
-  'lib/glMatrix',
-  'misc/getUrlOptions',
-  'misc/Utils',
-  'math3d/Geometry'
-], function (glm, getUrlOptions, Utils, Geometry) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var glm = require('lib/glMatrix');
+  var getOptionsURL = require('misc/getOptionsURL');
+  var Utils = require('misc/Utils');
+  var Geometry = require('math3d/Geometry');
 
   var vec2 = glm.vec2;
   var vec3 = glm.vec3;
@@ -26,7 +26,7 @@ define([
   var Camera = function (main) {
     this._main = main;
 
-    var opts = getUrlOptions();
+    var opts = getOptionsURL();
     this._mode = opts.cameramode || 'ORBIT'; // SPHERICAL / PLANE
     this._projectionType = opts.projection || 'PERSPECTIVE'; // ORTHOGRAPHIC
 
@@ -144,6 +144,8 @@ define([
           var oldZoom = this.getTransZ();
           this._trans[2] = vec3.dist(this.computePosition(), this._center) * this._fov / 45;
           this._offset[2] += this.getTransZ() - oldZoom;
+        } else {
+          this._offset[2] = 0.0;
         }
       };
     })(),
@@ -182,7 +184,7 @@ define([
       };
     })(),
     setOrbit: function (rx, ry) {
-      var radLimit = Math.PI * 0.45;
+      var radLimit = Math.PI * 0.5;
       this._rotX = Math.max(Math.min(rx, radLimit), -radLimit);
       this._rotY = ry;
       var qrt = this._quatRot;
@@ -518,8 +520,25 @@ define([
       vec3.sub(delta, target, this._offset);
       var cb = this._offsetDelta.bind(this, delta);
       this.delay(cb, duration, 'offset');
+    },
+    computeFrustumFit: function () {
+      var near = this._near;
+
+      if (this._projectionType === 'ORTHOGRAPHIC') {
+        return 1.0 / Math.sin(Math.atan2(Math.min(this._width, this._height) / near * 0.5, 1));
+      }
+
+      var proj = this._proj;
+      var left = near * (proj[8] - 1.0) / proj[0];
+      var right = near * (1.0 + proj[8]) / proj[0];
+      var top = near * (1.0 + proj[9]) / proj[5];
+      var bottom = near * (proj[9] - 1.0) / proj[5];
+      var vertical2 = Math.abs(right - left);
+      var horizontal2 = Math.abs(top - bottom);
+
+      return (this._fov / 45.0) / Math.sin(Math.atan2(Math.min(horizontal2, vertical2) / near * 0.5, 1));
     }
   };
 
-  return Camera;
+  module.exports = Camera;
 });

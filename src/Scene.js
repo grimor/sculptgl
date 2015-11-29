@@ -1,34 +1,41 @@
-define([
-  'lib/glMatrix',
-  'misc/getUrlOptions',
-  'misc/Utils',
-  'editor/Sculpt',
-  'editor/Subdivision',
-  'files/Import',
-  'gui/Gui',
-  'math3d/Camera',
-  'math3d/Picking',
-  'mesh/Background',
-  'mesh/Selection',
-  'mesh/Mesh',
-  'mesh/multiresolution/Multimesh',
-  'mesh/Primitive',
-  'states/States',
-  'render/Contour',
-  'render/Render',
-  'render/Rtt',
-  'render/shaders/ShaderMatcap',
-  'render/WebGLCaps'
-], function (glm, getUrlOptions, Utils, Sculpt, Subdivision, Import, Gui, Camera, Picking, Background, Selection, Mesh, Multimesh, Primitive, States, Contour, Render, Rtt, ShaderMatcap, WebGLCaps) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var glm = require('lib/glMatrix');
+  var getOptionsURL = require('misc/getOptionsURL');
+  var Utils = require('misc/Utils');
+  var Sculpt = require('editing/Sculpt');
+  var Subdivision = require('editing/Subdivision');
+  var Import = require('files/Import');
+  var Gui = require('gui/Gui');
+  var Camera = require('math3d/Camera');
+  var Picking = require('math3d/Picking');
+  var Background = require('drawables/Background');
+  var Selection = require('drawables/Selection');
+  var Mesh = require('mesh/Mesh');
+  var Multimesh = require('mesh/multiresolution/Multimesh');
+  var Primitives = require('drawables/Primitives');
+  var States = require('states/States');
+  var Render = require('mesh/Render');
+  var Rtt = require('drawables/Rtt');
+  var Shader = require('render/ShaderLib');
+  var WebGLCaps = require('render/WebGLCaps');
 
   var vec3 = glm.vec3;
   var mat4 = glm.mat4;
 
   var Scene = function () {
     this._gl = null; // webgl context
+
+    // cache canvas stuffs
+    this._pixelRatio = 1.0;
+    this._viewport = document.getElementById('viewport');
     this._canvas = document.getElementById('canvas');
+    this._canvasWidth = 0;
+    this._canvasHeight = 0;
+    this._canvasOffsetLeft = 0;
+    this._canvasOffsetTop = 0;
 
     // core of the app
     this._states = new States(this); // for undo-redo
@@ -37,6 +44,7 @@ define([
     this._picking = new Picking(this); // the ray picking
     this._pickingSym = new Picking(this, true); // the symmetrical picking
 
+    // TODO primitive builder
     this._meshPreview = null;
     this._torusLength = 0.5;
     this._torusWidth = 0.1;
@@ -45,7 +53,7 @@ define([
     this._torusTubular = 128;
 
     // renderable stuffs
-    var opts = getUrlOptions();
+    var opts = getOptionsURL();
     this._showContour = opts.outline;
     this._showGrid = opts.grid;
     this._grid = null;
@@ -54,8 +62,11 @@ define([
     this._meshes = []; // the meshes
     this._selectMeshes = []; // multi selection
     this._mesh = null; // the selected mesh
-    this._rtt = null; // rtt
-    this._contour = null; // rtt for contour
+
+    this._rttContour = null; // rtt for contour
+    this._rttMerge = null; // rtt decode opaque + merge transparent
+    this._rttOpaque = null; // rtt half float
+    this._rttTransparent = null; // rtt rgbm
 
     // ui stuffs
     this._focusGui = false; // if the gui is being focused
@@ -64,6 +75,7 @@ define([
     this._preventRender = false; // prevent multiple render per frame
     this._drawFullScene = false; // render everything on the rtt
     this._autoMatrix = opts.scalecenter; // scale and center the imported meshes
+    this._vertexSRGB = true; // srgb vs linear colorspace for vertex color
   };
 
   Scene.prototype = {
@@ -71,12 +83,17 @@ define([
       this.initWebGL();
       if (!this._gl)
         return;
+
       this._sculpt = new Sculpt(this);
-      this._background = new Background(this._gl, this);
       this._selection = new Selection(this._gl);
-      this._rtt = new Rtt(this._gl);
-      this._contour = new Contour(this._gl);
-      this._grid = Primitive.createGrid(this._gl);
+      this._background = new Background(this._gl, this);
+
+      this._rttContour = new Rtt(this._gl, 'CONTOUR', null);
+      this._rttMerge = new Rtt(this._gl, 'MERGE', null);
+      this._rttOpaque = new Rtt(this._gl, 'FXAA');
+      this._rttTransparent = new Rtt(this._gl, '', this._rttOpaque.getDepth(), true);
+
+      this._grid = Primitives.createGrid(this._gl);
       this.initGrid();
 
       this.loadTextures();
@@ -87,8 +104,20 @@ define([
     getBackground: function () {
       return this._background;
     },
+    getViewport: function () {
+      return this._viewport;
+    },
     getCanvas: function () {
       return this._canvas;
+    },
+    getPixelRatio: function () {
+      return this._pixelRatio;
+    },
+    getCanvasWidth: function () {
+      return this._canvasWidth;
+    },
+    getCanvasHeight: function () {
+      return this._canvasHeight;
     },
     getCamera: function () {
       return this._camera;
@@ -101,6 +130,9 @@ define([
     },
     getMesh: function () {
       return this._mesh;
+    },
+    getSelectionRadius: function () {
+      return this._selection;
     },
     getSelectedMeshes: function () {
       return this._selectMeshes;
@@ -120,6 +152,9 @@ define([
     setMesh: function (mesh) {
       return this.setOrUnsetMesh(mesh);
     },
+    setCanvasCursor: function (style) {
+      this._canvas.style.cursor = style;
+    },
     initGrid: function () {
       var grid = this._grid;
       grid.normalizeSize();
@@ -127,7 +162,7 @@ define([
       mat4.translate(gridm, gridm, [0.0, -0.45, 0.0]);
       var scale = 2.5;
       mat4.scale(gridm, gridm, [scale, scale, scale]);
-      this._grid.setShader('FLAT');
+      this._grid.setShaderName('FLAT');
       grid.setFlatColor([0.2140, 0.2140, 0.2140]);
     },
     setOrUnsetMesh: function (mesh, multiSelect) {
@@ -154,91 +189,117 @@ define([
       return mesh;
     },
     renderSelectOverRtt: function () {
-      if (this.requestRender())
+      if (this._requestRender())
         this._drawFullScene = false;
     },
-    /** Request a render */
-    render: function () {
-      this._drawFullScene = true;
-      this.requestRender();
-    },
-    requestRender: function () {
+    _requestRender: function () {
       if (this._preventRender === true)
         return false; // render already requested for the next frame
+
       window.requestAnimationFrame(this.applyRender.bind(this));
       this._preventRender = true;
       return true;
     },
-    /** Render the scene */
+    render: function () {
+      this._drawFullScene = true;
+      this._requestRender();
+    },
     applyRender: function () {
       this._preventRender = false;
       this.updateMatricesAndSort();
+
       var gl = this._gl;
       if (!gl) return;
 
-      if (this._drawFullScene) {
-        gl.disable(gl.DEPTH_TEST);
+      if (this._drawFullScene) this._drawScene();
 
-        var showContour = this._selectMeshes.length > 0 && this._showContour && this._contour.isEffective();
-        if (showContour) {
-          // flat color RTT for contours
-          gl.bindFramebuffer(gl.FRAMEBUFFER, this._contour.getFramebuffer());
-          gl.clear(gl.COLOR_BUFFER_BIT);
-          for (var s = 0, sel = this._selectMeshes, nbSel = sel.length; s < nbSel; ++s)
-            sel[s].renderFlatColor(this);
-        }
+      gl.disable(gl.DEPTH_TEST);
 
-        // main scene RTT
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this._rtt.getFramebuffer());
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        // BACKGROUND
-        this._background.render();
-
-        gl.enable(gl.DEPTH_TEST);
-        // GRID
-        if (this._showGrid)
-          this._grid.render(this);
-
-        // MESHES
-        var i = 0;
-        var meshes = this._meshes;
-        var nbMeshes = meshes.length;
-        // OPAQUE
-        gl.disable(gl.CULL_FACE);
-        for (i = 0; i < nbMeshes; ++i) {
-          if (meshes[i].isTransparent())
-            break;
-          meshes[i].render(this);
-        }
-        if (this._meshPreview)
-          this._meshPreview.render(this);
-        gl.enable(gl.CULL_FACE);
-
-        // TRANSPARENCY
-        for (; i < nbMeshes; ++i) {
-          gl.cullFace(gl.FRONT); // draw back first
-          meshes[i].render(this);
-          gl.cullFace(gl.BACK); // ... and then front
-          meshes[i].render(this);
-        }
-        // We can also draw all the transparent meshes backfaces first and then the front faces
-        // it would be better for intersected transparent meshes but worse for separated meshes
-
-        // draw sobel contour
-        if (showContour)
-          this._contour.render();
-      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttMerge.getFramebuffer());
+      this._rttMerge.render(this); // merge + decode
 
       // render to screen
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.disable(gl.DEPTH_TEST);
-      this._rtt.render();
+
+      this._rttOpaque.render(this); // fxaa
       this._selection.render(this);
+      this._sculpt.postRender(); // draw sculpt gizmos
 
       gl.enable(gl.DEPTH_TEST);
-      // draw sculpt gizmos
-      this._sculpt.postRender();
+    },
+    _drawScene: function () {
+      var gl = this._gl;
+      var i = 0;
+      var meshes = this._meshes;
+      var nbMeshes = meshes.length;
+
+      ///////////////
+      // CONTOUR 1/2
+      ///////////////
+      gl.disable(gl.DEPTH_TEST);
+      var showContour = this._selectMeshes.length > 0 && this._showContour && Shader.CONTOUR.color[3] > 0.0;
+      if (showContour) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttContour.getFramebuffer());
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        for (var s = 0, sel = this._selectMeshes, nbSel = sel.length; s < nbSel; ++s)
+          sel[s].renderFlatColor(this);
+      }
+      gl.enable(gl.DEPTH_TEST);
+
+      ///////////////
+      // OPAQUE PASS
+      ///////////////
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttOpaque.getFramebuffer());
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      // grid
+      if (this._showGrid) this._grid.render(this);
+
+      // (post opaque pass)
+      for (i = 0; i < nbMeshes; ++i) {
+        if (meshes[i].isTransparent()) break;
+        meshes[i].render(this);
+      }
+      var startTransparent = i;
+      if (this._meshPreview) this._meshPreview.render(this);
+
+      // background
+      this._background.render();
+
+      ///////////////
+      // TRANSPARENT PASS
+      ///////////////
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttTransparent.getFramebuffer());
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.enable(gl.BLEND);
+      for (i = 0; i < nbMeshes; ++i) {
+        if (meshes[i].getShowWireframe())
+          meshes[i].renderWireframe(this);
+      }
+
+      gl.depthMask(false);
+      gl.enable(gl.CULL_FACE);
+
+      for (i = startTransparent; i < nbMeshes; ++i) {
+        gl.cullFace(gl.FRONT); // draw back first
+        meshes[i].render(this);
+        gl.cullFace(gl.BACK); // ... and then front
+        meshes[i].render(this);
+      }
+
+      gl.disable(gl.CULL_FACE);
+
+      ///////////////
+      // CONTOUR 2/2
+      ///////////////
+      if (showContour) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttOpaque.getFramebuffer());
+        this._rttContour.render(this);
+      }
+
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
     },
     /** Pre compute matrices and sort meshes */
     updateMatricesAndSort: function () {
@@ -255,55 +316,57 @@ define([
       if (this._grid)
         this._grid.updateMatrices(cam);
     },
-    /** Load webgl context */
     initWebGL: function () {
       var attributes = {
         antialias: false,
         stencil: true
       };
+
       var canvas = document.getElementById('canvas');
       var gl = this._gl = canvas.getContext('webgl', attributes) || canvas.getContext('experimental-webgl', attributes);
       if (!gl) {
         window.alert('Could not initialise WebGL. No WebGL, no SculptGL. Sorry.');
         return;
       }
+
       WebGLCaps.initWebGLExtensions(gl);
       if (!WebGLCaps.getWebGLExtension('OES_element_index_uint'))
         Render.ONLY_DRAW_ARRAYS = true;
-      gl.viewportWidth = window.innerWidth;
-      gl.viewportHeight = window.innerHeight;
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
       gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+
+      gl.disable(gl.CULL_FACE);
       gl.frontFace(gl.CCW);
-      gl.depthFunc(gl.LEQUAL);
       gl.cullFace(gl.BACK);
-      gl.enable(gl.CULL_FACE);
-      gl.clearColor(0.033, 0.033, 0.033, 1);
+
+      gl.disable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+      gl.disable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.depthMask(true);
+
+      gl.clearColor(0.0, 0.0, 0.0, 0.0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     },
     /** Load textures (preload) */
     loadTextures: function () {
       var self = this;
+      var gl = this._gl;
+      var ShaderMatcap = Shader.MATCAP;
+
       var loadTex = function (path, idMaterial) {
         var mat = new Image();
         mat.src = path;
-        var gl = self._gl;
+
         mat.onload = function () {
-          var idTex = gl.createTexture();
-          gl.bindTexture(gl.TEXTURE_2D, idTex);
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mat);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-          gl.generateMipmap(gl.TEXTURE_2D);
-          gl.bindTexture(gl.TEXTURE_2D, null);
-          ShaderMatcap.textures[idMaterial] = idTex;
+          ShaderMatcap.createTexture(gl, mat, idMaterial);
           self.render();
         };
       };
+
       for (var i = 0, mats = ShaderMatcap.matcaps, l = mats.length; i < l; ++i)
         loadTex(mats[i].path, i);
 
@@ -320,14 +383,27 @@ define([
     },
     /** Called when the window is resized */
     onCanvasResize: function () {
-      var newWidth = this._gl.viewportWidth = this._canvas.width;
-      var newHeight = this._gl.viewportHeight = this._canvas.height;
+      var viewport = this._viewport;
+      var newWidth = viewport.clientWidth * this._pixelRatio;
+      var newHeight = viewport.clientHeight * this._pixelRatio;
 
-      this._background.onResize(newWidth, newHeight);
-      this._rtt.onResize(newWidth, newHeight);
-      this._contour.onResize(newWidth, newHeight);
+      this._canvasOffsetLeft = viewport.offsetLeft;
+      this._canvasOffsetTop = viewport.offsetTop;
+      this._canvasWidth = newWidth;
+      this._canvasHeight = newHeight;
+
+      this._canvas.width = newWidth;
+      this._canvas.height = newHeight;
+
       this._gl.viewport(0, 0, newWidth, newHeight);
       this._camera.onResize(newWidth, newHeight);
+      this._background.onResize(newWidth, newHeight);
+
+      this._rttContour.onResize(newWidth, newHeight);
+      this._rttMerge.onResize(newWidth, newHeight);
+      this._rttOpaque.onResize(newWidth, newHeight);
+      this._rttTransparent.onResize(newWidth, newHeight);
+
       this.render();
     },
     computeBoundingBoxMeshes: function (meshes) {
@@ -362,30 +438,29 @@ define([
         mat4.mul(mat, mCen, mat);
       }
     },
-    /** Load the sphere */
     addSphere: function () {
       // make a cube and subdivide it
-      var mesh = new Multimesh(Primitive.createCube(this._gl));
+      var mesh = new Multimesh(Primitives.createCube(this._gl));
       mesh.normalizeSize();
       this.subdivideClamp(mesh);
       return this.addNewMesh(mesh);
     },
     addCube: function () {
-      var mesh = new Multimesh(Primitive.createCube(this._gl));
+      var mesh = new Multimesh(Primitives.createCube(this._gl));
       mesh.normalizeSize();
       mat4.scale(mesh.getMatrix(), mesh.getMatrix(), [0.7, 0.7, 0.7]);
       this.subdivideClamp(mesh, true);
       return this.addNewMesh(mesh);
     },
     addCylinder: function () {
-      var mesh = new Multimesh(Primitive.createCylinder(this._gl));
+      var mesh = new Multimesh(Primitives.createCylinder(this._gl));
       mesh.normalizeSize();
       mat4.scale(mesh.getMatrix(), mesh.getMatrix(), [0.7, 0.7, 0.7]);
       this.subdivideClamp(mesh);
       return this.addNewMesh(mesh);
     },
     addTorus: function (preview) {
-      var mesh = new Multimesh(Primitive.createTorus(this._gl, this._torusLength, this._torusWidth, this._torusRadius, this._torusRadial, this._torusTubular));
+      var mesh = new Multimesh(Primitives.createTorus(this._gl, this._torusLength, this._torusWidth, this._torusRadius, this._torusRadial, this._torusTubular));
       if (preview) {
         mesh.setShowWireframe(true);
         var scale = 0.3 * Utils.SCALE;
@@ -412,7 +487,7 @@ define([
       this.setMesh(mesh);
       return mesh;
     },
-    loadScene: function (fileData, fileType, autoMatrix) {
+    loadScene: function (fileData, fileType) {
       var newMeshes;
       if (fileType === 'obj') newMeshes = Import.importOBJ(fileData, this._gl);
       else if (fileType === 'sgl') newMeshes = Import.importSGL(fileData, this._gl, this);
@@ -425,13 +500,18 @@ define([
       var meshes = this._meshes;
       for (var i = 0; i < nbNewMeshes; ++i) {
         var mesh = newMeshes[i] = new Multimesh(newMeshes[i]);
+
+        if (!this._vertexSRGB)
+          Utils.convertArrayVec3toSRGB(mesh.getColors());
+
         mesh.init();
         mesh.initRender();
         meshes.push(mesh);
       }
 
-      if (autoMatrix)
+      if (this._autoMatrix)
         this.normalizeAndCenterMeshes(newMeshes);
+
       this._states.pushStateAdd(newMeshes);
       this.setMesh(meshes[meshes.length - 1]);
       this._camera.resetView();
@@ -441,10 +521,6 @@ define([
       this.getStates().reset();
       this.getMeshes().length = 0;
       this.getCamera().resetView();
-      var opts = getUrlOptions();
-      this._showGrid = opts.grid;
-      this._showContour = opts.outline;
-      this._autoMatrix = opts.scalecenter;
       this.setMesh(null);
       this._action = 'NOTHING';
     },
@@ -503,5 +579,5 @@ define([
     }
   };
 
-  return Scene;
+  module.exports = Scene;
 });

@@ -1,22 +1,22 @@
-define([
-  'misc/Utils',
-  'mesh/meshData/DrawArraysData',
-  'mesh/meshData/EdgeData',
-  'mesh/meshData/IndexData',
-  'mesh/meshData/TexCoordsData',
-  'mesh/meshData/TransformData',
-  'mesh/meshData/VertexData',
-  'mesh/meshData/WireframeData'
-], function (Utils, DrawArraysData, EdgeData, IndexData, TexCoordsData, TransformData, VertexData, WireframeData) {
+define(function (require, exports, module) {
 
   'use strict';
+
+  var Utils = require('misc/Utils');
+  var DrawArraysData = require('mesh/meshData/DrawArraysData');
+  var EdgeData = require('mesh/meshData/EdgeData');
+  var FaceData = require('mesh/meshData/FaceData');
+  var TexCoordsData = require('mesh/meshData/TexCoordsData');
+  var TransformData = require('mesh/meshData/TransformData');
+  var VertexData = require('mesh/meshData/VertexData');
+  var WireframeData = require('mesh/meshData/WireframeData');
 
   var MeshData = function (mesh) {
     this._mesh = mesh; // the mesh
 
     this._drawArraysData = new DrawArraysData(mesh); // the wireframe data
     this._edgeData = new EdgeData(mesh); // the edge data
-    this._indexData = new IndexData(mesh); // the index data
+    this._faceData = new FaceData(mesh); // the index data
     this._texCoordsData = new TexCoordsData(mesh); // the uv data
     this._vertexData = new VertexData(mesh); // the vertex data
     this._wireframeData = new WireframeData(mesh); // the wireframe data
@@ -30,8 +30,8 @@ define([
     getEdgeData: function () {
       return this._edgeData;
     },
-    getIndexData: function () {
-      return this._indexData;
+    getFaceData: function () {
+      return this._faceData;
     },
     getTexCoordsData: function () {
       return this._texCoordsData;
@@ -51,8 +51,8 @@ define([
     setEdgeData: function (data) {
       this._edgeData = data;
     },
-    setIndexData: function (data) {
-      this._indexData = data;
+    setFaceData: function (data) {
+      this._faceData = data;
     },
     setTexCoordsData: function (data) {
       this._texCoordsData = data;
@@ -82,9 +82,9 @@ define([
     };
   });
 
-  Utils.makeProxy(IndexData, MeshData, function (proto) {
+  Utils.makeProxy(FaceData, MeshData, function (proto) {
     return function () {
-      return proto.apply(this.getIndexData(), arguments);
+      return proto.apply(this.getFaceData(), arguments);
     };
   });
 
@@ -112,5 +112,5 @@ define([
     };
   });
 
-  return MeshData;
+  module.exports = MeshData;
 });

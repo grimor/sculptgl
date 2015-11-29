@@ -1,4 +1,4 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
 
@@ -34,6 +34,7 @@ define([], function () {
     fileImportTitle: '匯入',
     fileAdd: '加入 (obj, sgl, ply, stl)',
     fileAutoMatrix: null,
+    fileVertexSRGB: null,
     fileExportMeshTitle: '匯出網面',
     fileExportSceneTitle: '匯出場景',
     fileExportSGL: '儲存 .sgl (SculptGL)',
@@ -92,19 +93,19 @@ define([], function () {
 
     // sculpt
     sculptTitle: '雕刻和塗繪',
-    sculptBrush: '筆刷 (1)',
-    sculptInflate: '膨脹 (2)',
-    sculptTwist: '扭轉 (3)',
-    sculptSmooth: '平滑 (4 or -Shift)',
-    sculptFlatten: '抹平 (5)',
-    sculptPinch: '夾捏 (6)',
-    sculptCrease: '皺褶 (7)',
-    sculptDrag: '拖拉 (8)',
-    sculptPaint: '塗繪 (9)',
+    sculptBrush: '筆刷',
+    sculptInflate: '膨脹',
+    sculptTwist: '扭轉',
+    sculptSmooth: '平滑 (-Shift)',
+    sculptFlatten: '抹平',
+    sculptPinch: '夾捏',
+    sculptCrease: '皺褶',
+    sculptDrag: '拖拉',
+    sculptPaint: '塗繪',
     sculptMasking: null,
     sculptMove: null,
     sculptLocalScale: null,
-    sculptTransform: '縮放 移動 旋轉 (e)',
+    sculptTransform: '縮放 移動 旋轉 (E)',
 
     sculptCommon: null,
     sculptTool: '工具',
@@ -125,7 +126,7 @@ define([], function () {
     sculptClay: '黏土',
     sculptAccumulate: '累積 (每道筆劃無限制)',
     sculptColorGlobal: '全域',
-    sculptPickColor: '選擇材質',
+    sculptPickColor: '選擇材質 (-S)',
     sculptTangentialSmoothing: '僅放鬆',
     sculptTopologicalCheck: null,
     sculptMoveAlongNormal: null,
@@ -163,17 +164,22 @@ define([], function () {
     renderingShader: '著色器',
     renderingMaterial: '材質',
     renderingImportUV: '匯入 (jpg, png...)',
+    renderingImportMatcap: '匯入 (jpg, png...)',
     renderingExtra: '額外項目',
     renderingFlat: '平整面 (較慢)',
-    renderingWireframe: '線框 (較慢)',
+    renderingWireframe: '線框 (較慢) (W)',
     renderingExposure: null,
     renderingEnvironment: null,
     renderingIsolate: null,
+    renderingFilmic: null,
 
     // contour
     contour: null,
     contourShow: null,
     contourColor: null,
+
+    // pixel ratio
+    resolution: null,
 
     // matcaps
     matcapPearl: '珍珠',
@@ -181,11 +187,6 @@ define([], function () {
     matcapSkin: '膚色',
     matcapGreen: '綠色',
     matcapWhite: '白色',
-    matcapBronze: '銅',
-    matcapChavant: '精雕油土',
-    matcapDrink: '飲料',
-    matcapRedVelvet: '紅絲絨',
-    matcapOrange: '橙色',
 
     // sketchfab
     sketchfabTitle: '前往 Sketchfab !',
@@ -213,5 +214,5 @@ define([], function () {
     envBryantPark: null
   };
 
-  return TR;
+  module.exports = TR;
 });

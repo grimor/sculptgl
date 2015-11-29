@@ -1,45 +1,6 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
-
-  // Not sure I should put theses functions here...
-  // polyfills
-  if (!window.Map) {
-    window.Map = function () {
-      this.map = {};
-    };
-    window.Map.prototype = {
-      set: function (key, value) {
-        this.map[key] = value;
-      },
-      get: function (key) {
-        return this.map[key];
-      }
-    };
-  }
-
-  /** endsWith function */
-  if (!String.prototype.endsWith) {
-    String.prototype.endsWith = function (str) {
-      return this.slice(-str.length) === str;
-    };
-  }
-
-  /** startsWith function */
-  if (!String.prototype.startsWith) {
-    String.prototype.startsWith = function (str) {
-      return this.slice(0, str.length) === str;
-    };
-  }
-
-  (function () {
-    var vendors = ['moz', 'webkit'];
-    for (var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
-      window.requestAnimationFrame = window[vendors[x] + 'RequestAnimationFrame'];
-    }
-    if (!window.requestAnimationFrame)
-      window.alert('browser is too old. Probably no webgl there anyway');
-  }());
 
   var Utils = {};
 
@@ -47,6 +8,9 @@ define([], function () {
   Utils.TAG_FLAG = 1; // flag value for comparison (always >= tags values)
   Utils.SCULPT_FLAG = 1; // flag value for sculpt (always >= tags values)
   Utils.STATE_FLAG = 1; // flag value for states (always >= tags values)
+
+  Utils.cursors = {};
+  Utils.cursors.dropper = 'url(resources/dropper.png) 5 25, auto';
 
   Utils.makeProxy = function (source, proxy, wrapFunc) {
     var sourceProto = source.prototype;
@@ -231,7 +195,7 @@ define([], function () {
 
   Utils.normalizeArrayVec3 = function (array, out) {
     var arrayOut = out || array;
-    for (var i = 0, l = array.length; i < l; ++i) {
+    for (var i = 0, l = array.length / 3; i < l; ++i) {
       var j = i * 3;
       var nx = array[j];
       var ny = array[j + 1];
@@ -249,147 +213,26 @@ define([], function () {
     return arrayOut;
   };
 
-  // var vector = function (ArrayConstructor, initSize) {
-  //   this._constructor = ArrayConstructor;
-  //   this._data = new ArrayConstructor(initSize);
-  //   this.length = 0;
-  // };
-  // vector.prototype = {
-  //   push: function (element) {
-  //     if (this.length === this._data.length) {
-  //       var tmp = this._data;
-  //       this._data = new this._constructor(1 + this.length * 2);
-  //       this._data.set(tmp);
-  //     }
-  //     this._data[this.length++] = element;
-  //   },
-  //   pop: function () {
-  //     --this.length;
-  //     if (this.length < this._data.length * 4) {
-  //       this._data.subarray(0, 1 + this.length * 2);
-  //     }
-  //   },
-  //   append: function (array) {
-  //     var offset = this.length;
-  //     this.length += array.length;
-  //     if (this.length >= this._data.length) {
-  //       var tmp = this._data;
-  //       this._data = new this._constructor(1 + this.length * 2);
-  //       this._data.set(tmp);
-  //     }
-  //     this._data.set(array, offset);
-  //   },
-  //   getShrinked: function () {
-  //     return this._data.subarray(0, this.length);
-  //   }
-  // };
-  // Utils.vector = vector;
+  Utils.convertArrayVec3toSRGB = function (array, out) {
+    var arrayOut = out || array;
+    for (var i = 0, l = array.length; i < l; ++i) {
+      var c = array[i];
+      var S1 = Math.sqrt(c);
+      var S2 = Math.sqrt(S1);
+      var S3 = Math.sqrt(S2);
+      arrayOut[i] = 0.662002687 * S1 + 0.684122060 * S2 - 0.323583601 * S3 - 0.0225411470 * c;
+    }
+    return arrayOut;
+  };
 
-  // /** Compute ACMR and ATVR (vertex post transform ratio) */
-  // Utils.outputsACMRandATVR = function (mesh) {
-  //   var iAr = mesh.getTriangles();
-  //   var sizeCache = 32;
-  //   var cache = [];
-  //   cache.length = sizeCache;
+  Utils.convertArrayVec3toLinear = function (array, out) {
+    var arrayOut = out || array;
+    for (var i = 0, l = array.length; i < l; ++i) {
+      var c = array[i];
+      arrayOut[i] = c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878);
+    }
+    return arrayOut;
+  };
 
-  //   var isCacheMiss = function (id) {
-  //     for (var k = 0; k < sizeCache; ++k) {
-  //       if (cache[k] === undefined) {
-  //         cache[k] = id;
-  //         return 1;
-  //       } else if (cache[k] === id) {
-  //         // not sure about that one...
-  //         // Does a cache HIT moves the vert
-  //         // up in the FIFO ?
-  //         // cache.splice(k,1)
-  //         // cache.push(id)
-  //         return 0;
-  //       }
-  //     }
-  //     cache.shift();
-  //     cache.push(id);
-  //     return 1;
-  //   };
-
-  //   var nbTriangles = mesh.getNbTriangles();
-  //   var cacheMiss = 0;
-  //   for (var i = 0; i < nbTriangles; ++i) {
-  //     var id = i * 3;
-  //     cacheMiss += isCacheMiss(iAr[id]);
-  //     cacheMiss += isCacheMiss(iAr[id + 1]);
-  //     cacheMiss += isCacheMiss(iAr[id + 2]);
-  //   }
-
-  //   console.log('ACMR : ' + cacheMiss / nbTriangles);
-  //   console.log('ATVR : ' + cacheMiss / mesh.getNbVertices());
-  // };
-
-  // Utils.optimizePreTransform = function (newMesh) {
-  //   var vArOld = newMesh.getVertices();
-  //   var cArOld = newMesh.getColors();
-  //   var mArOld = newMesh.getMaterials();
-  //   var fArOld = newMesh.getFaces();
-
-  //   // var hasUV = newMesh.hasUV();
-  //   // var fArUVOld = newMesh.getFacesTexCoord();
-  //   // var uvArOld = newMesh.getTexCoords();
-  //   // var dupOld = newMesh.getVerticesDuplicateStartCount();
-
-  //   var nbVerts = newMesh.getNbVertices();
-
-  //   var vArNew = new Float32Array(nbVerts * 3);
-  //   var cArNew = cArOld ? new Float32Array(nbVerts * 3) : null;
-  //   var mArNew = mArOld ? new Float32Array(nbVerts * 3) : null;
-  //   var fArNew = new Uint32Array(newMesh.getNbFaces() * 4);
-
-  //   // var dupNew = hasUV ? new Uint32Array(nbVerts * 2) : null;
-  //   // var uvArNew = hasUV ? new Float32Array(uvArOld.subarray(0, newMesh.getNbTexCoords() * 2)) : null;
-  //   // var fArUVNew = hasUV ? new Int32Array(fArUVOld.subarray(0, newMesh.getNbFaces() * 4)) : null;
-
-  //   var idvPos = new Int32Array(nbVerts);
-  //   var acc = 0;
-  //   for (var i = 0, l = fArNew.length; i < l; ++i) {
-  //     var iv = fArOld[i];
-  //     var tag = idvPos[iv] - 1;
-  //     if (tag === -1) {
-  //       var idNew = acc * 3;
-  //       var idOld = iv * 3;
-  //       vArNew[idNew] = vArOld[idOld];
-  //       vArNew[idNew + 1] = vArOld[idOld + 1];
-  //       vArNew[idNew + 2] = vArOld[idOld + 2];
-  //       if (cArNew) {
-  //         cArNew[idNew] = cArOld[idOld];
-  //         cArNew[idNew + 1] = cArOld[idOld + 1];
-  //         cArNew[idNew + 2] = cArOld[idOld + 2];
-  //       }
-  //       if (mArNew) {
-  //         mArNew[idNew] = mArOld[idOld];
-  //         mArNew[idNew + 1] = mArOld[idOld + 1];
-  //         mArNew[idNew + 2] = mArOld[idOld + 2];
-  //       }
-  //       // if (dupNew) {
-  //       //   dupNew[acc * 2] = dupOld[iv * 2];
-  //       //   dupNew[acc * 2 + 1] = dupOld[iv * 2 + 1];
-  //       // }
-  //       // if (uvArNew) {
-  //       //   uvArNew[acc * 2] = uvArOld[iv * 2];
-  //       //   uvArNew[acc * 2 + 1] = uvArOld[iv * 2 + 1];
-  //       // }
-  //       tag = acc++;
-  //       idvPos[iv] = tag + 1;
-  //     }
-  //     fArNew[i] = tag;
-  //     // if (fArUVNew && fArUVNew[i] < nbVerts)
-  //     //   fArUVNew[i] = tag;
-  //   }
-  //   newMesh.setVertices(vArNew);
-  //   newMesh.setColors(cArNew);
-  //   newMesh.setMaterials(mArNew);
-  //   newMesh.setFaces(fArNew);
-  //   // newMesh.setVerticesDuplicateStartCount(dupNew);
-  //   // newMesh.setTexCoords(uvArNew);
-  //   // newMesh.setFacesTexCoord(fArUVNew);
-  // };
-
-  return Utils;
+  module.exports = Utils;
 });

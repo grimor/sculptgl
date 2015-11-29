@@ -1,4 +1,4 @@
-define([], function () {
+define(function (require, exports, module) {
 
   'use strict';
 
@@ -34,6 +34,7 @@ define([], function () {
     fileImportTitle: '가져오기',
     fileAdd: '파일 (obj, sgl, ply, stl)',
     fileAutoMatrix: null,
+    fileVertexSRGB: null,
     fileExportMeshTitle: '메쉬 내보내기',
     fileExportSceneTitle: '장면 내보내기',
     fileExportSGL: 'sgl로 저장하기',
@@ -92,7 +93,7 @@ define([], function () {
 
     // sculpt
     sculptTitle: null,
-    sculptBrush: '브러쉬 (1)',
+    sculptBrush: '브러쉬',
     sculptInflate: null,
     sculptTwist: null,
     sculptSmooth: null,
@@ -163,17 +164,22 @@ define([], function () {
     renderingShader: '쉐이더',
     renderingMaterial: '질',
     renderingImportUV: '가져오기 (jpg, png...)',
+    renderingImportMatcap: '가져오기 (jpg, png...)',
     renderingExtra: '추가',
     renderingFlat: '편평한 (느리게)',
-    renderingWireframe: '와이어프레임 (느리게)',
+    renderingWireframe: '와이어프레임 (느리게) (W)',
     renderingExposure: null,
     renderingEnvironment: null,
     renderingIsolate: null,
+    renderingFilmic: null,
 
     // contour
     contour: null,
     contourShow: null,
     contourColor: null,
+
+    // pixel ratio
+    resolution: null,
 
     // matcaps
     matcapPearl: null,
@@ -181,11 +187,6 @@ define([], function () {
     matcapSkin: null,
     matcapGreen: null,
     matcapWhite: null,
-    matcapBronze: null,
-    matcapChavant: null,
-    matcapDrink: null,
-    matcapRedVelvet: null,
-    matcapOrange: null,
 
     // sketchfab
     sketchfabTitle: 'Sketchfab으로 가기 !',
@@ -213,5 +214,5 @@ define([], function () {
     envBryantPark: null
   };
 
-  return TR;
+  module.exports = TR;
 });
